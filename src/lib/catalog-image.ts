@@ -67,8 +67,9 @@ export function getCatalogImageSources(imageKey: string | null | undefined): Cat
   }
 
   const baseName = getPublicMenuBaseName(trimmedValue);
-  const optimized400 = `/menu/${baseName}-400.webp`;
-  const optimized800 = `/menu/${baseName}-800.webp`;
+  const base = import.meta.env.BASE_URL;
+  const optimized400 = `${base}menu/${baseName}-400.webp`;
+  const optimized800 = `${base}menu/${baseName}-800.webp`;
 
   return {
     src: optimized400,

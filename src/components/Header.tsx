@@ -21,7 +21,7 @@ export function Header({ onCartClick }: HeaderProps) {
       <div className="container mx-auto flex min-h-16 flex-col gap-2 px-3 py-2 md:h-16 md:flex-row md:items-center md:justify-between md:px-4 md:py-0">
         <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-start">
           <div className="flex min-w-0 items-center gap-2">
-            <img src="/placeholder.svg" alt="Restaurante Modelo" className="h-12 w-16 shrink-0 rounded-md object-cover shadow-soft md:w-20" />
+            <img src={`${import.meta.env.BASE_URL}placeholder.svg`} alt="Restaurante Modelo" className="h-12 w-16 shrink-0 rounded-md object-cover shadow-soft md:w-20" />
             <span className="truncate font-display text-lg font-bold leading-tight text-background md:text-xl">
             Restaurante <span className="text-primary">Modelo</span>
             </span>

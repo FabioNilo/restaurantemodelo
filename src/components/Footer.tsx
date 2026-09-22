@@ -14,7 +14,7 @@ export function Footer({ whatsappNumber = DEFAULT_SITE_SETTINGS.whatsapp_numero 
         <div className="mb-12 grid gap-12 md:grid-cols-4">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <img src="/placeholder.svg" alt="Restaurante Modelo" className="h-12 w-20 rounded-md object-cover shadow-soft" />
+              <img src={`${import.meta.env.BASE_URL}placeholder.svg`} alt="Restaurante Modelo" className="h-12 w-20 rounded-md object-cover shadow-soft" />
               <span className="font-display text-xl font-bold">
                 Restaurante <span className="text-primary">Modelo</span>
               </span>

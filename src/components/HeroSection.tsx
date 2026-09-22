@@ -6,6 +6,7 @@ interface HeroSectionProps {
 }
 
 const HERO_IMAGE_VERSION = '2026-09-21';
+const BASE_URL = import.meta.env.BASE_URL;
 
 export function HeroSection({ deliveryNotice }: HeroSectionProps) {
   return (
@@ -13,11 +14,11 @@ export function HeroSection({ deliveryNotice }: HeroSectionProps) {
       <picture>
         <source
           type="image/webp"
-          srcSet={`/hero/restaurante-modelo-hero-768.webp?v=${HERO_IMAGE_VERSION} 768w, /hero/restaurante-modelo-hero-1280.webp?v=${HERO_IMAGE_VERSION} 1280w, /hero/restaurante-modelo-hero-1920.webp?v=${HERO_IMAGE_VERSION} 1920w`}
+          srcSet={`${BASE_URL}hero/restaurante-modelo-hero-768.webp?v=${HERO_IMAGE_VERSION} 768w, ${BASE_URL}hero/restaurante-modelo-hero-1280.webp?v=${HERO_IMAGE_VERSION} 1280w, ${BASE_URL}hero/restaurante-modelo-hero-1920.webp?v=${HERO_IMAGE_VERSION} 1920w`}
           sizes="100vw"
         />
         <img
-          src={`/hero/restaurante-modelo-hero.jpg?v=${HERO_IMAGE_VERSION}`}
+          src={`${BASE_URL}hero/restaurante-modelo-hero.jpg?v=${HERO_IMAGE_VERSION}`}
           alt="Prato grelhado fatiado com tomates, cebolas e ervas, servido em tábua de madeira"
           className="absolute inset-0 h-full w-full object-cover object-[70%_center] animate-hero-ken-burns md:object-center"
           fetchPriority="high"
@@ -42,7 +43,7 @@ export function HeroSection({ deliveryNotice }: HeroSectionProps) {
           )}
 
           <div className="flex items-center gap-3 animate-fade-in">
-            <img src="/placeholder.svg" alt="Restaurante Modelo" className="h-12 w-20 rounded-lg object-cover shadow-card sm:h-16 sm:w-28" />
+            <img src={`${BASE_URL}placeholder.svg`} alt="Restaurante Modelo" className="h-12 w-20 rounded-lg object-cover shadow-card sm:h-16 sm:w-28" />
             <div className="hidden sm:block">
               <p className="text-xs font-black uppercase tracking-[0.28em] text-primary">Comida feita na hora</p>
               <p className="text-sm text-white/64">Restaurante Modelo</p>
