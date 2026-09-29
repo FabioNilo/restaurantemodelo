@@ -234,7 +234,7 @@ export function DeliveryZonesCard() {
     <Card className="border-primary/15 bg-card/80">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
-          <MapPin className="h-5 w-5 text-primary" />
+          <MapPin className="h-5 w-5 text-gold-ink" />
           Bairros e taxas de entrega
         </CardTitle>
         <CardDescription>
@@ -307,7 +307,7 @@ export function DeliveryZonesCard() {
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-gold-ink" />
             </div>
           ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
@@ -436,7 +436,7 @@ export function DeliveryZonesCard() {
         <section className="space-y-4 border-t pt-6">
           <div>
             <h3 className="flex items-center gap-2 font-display text-lg font-bold">
-              <CalendarDays className="h-5 w-5 text-primary" />
+              <CalendarDays className="h-5 w-5 text-gold-ink" />
               Datas especiais
             </h3>
             <p className="text-sm text-muted-foreground">

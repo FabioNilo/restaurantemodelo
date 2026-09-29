@@ -66,7 +66,7 @@ export function GestoresAccessCard() {
     <Card className="border-primary/15 bg-card/80">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
-          <UserCog className="h-5 w-5 text-primary" />
+          <UserCog className="h-5 w-5 text-gold-ink" />
           Gestores de acesso
         </CardTitle>
         <CardDescription>
@@ -113,7 +113,7 @@ export function GestoresAccessCard() {
 
         <div className="rounded-2xl border bg-muted/20">
           <div className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
-            <ShieldCheck className="h-4 w-4 text-primary" />
+            <ShieldCheck className="h-4 w-4 text-gold-ink" />
             Acessos limitados cadastrados
           </div>
           <div className="divide-y">

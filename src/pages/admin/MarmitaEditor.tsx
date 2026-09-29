@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Leaf, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldAlert } from 'lucide-react';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 import { MarmitaForm } from '@/components/admin/MarmitaForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,7 +70,7 @@ export default function MarmitaEditor() {
     return (
       <div className="min-h-screen bg-background">
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
         </div>
       </div>
     );
@@ -119,15 +120,9 @@ export default function MarmitaEditor() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto flex items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Leaf className="h-6 w-6 text-primary" />
-            <span className="font-display text-xl font-bold text-gradient">Admin</span>
-          </div>
-          <span className="hidden text-sm text-muted-foreground sm:block">{user?.username ?? user?.email}</span>
-        </div>
-      </header>
+      <AdminHeader>
+        <span className="hidden text-sm text-muted-foreground sm:block">{user?.username ?? user?.email}</span>
+      </AdminHeader>
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">

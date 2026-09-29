@@ -77,7 +77,7 @@ export function GestorStockManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
       </div>
     );
   }
@@ -141,7 +141,7 @@ export function GestorStockManager() {
                           <div className="font-medium">{item.nome}</div>
                           <div className="text-xs text-muted-foreground">Edição limitada ao estoque</div>
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-primary">
+                        <TableCell className="text-right font-semibold text-gold-ink">
                           {formatCurrency(item.preco)}
                         </TableCell>
                         <TableCell className="min-w-32 text-center">

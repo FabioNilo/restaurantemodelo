@@ -5,10 +5,14 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/restaurantemodelo/' : '/',
+  base: '/',
   server: {
     host: "::",
     port: 8080,
+    // Em desenvolvimento, /api vai para a API local (npm run dev:api).
+    proxy: {
+      '/api': 'http://localhost:8787',
+    },
   },
   plugins: [
     react(),

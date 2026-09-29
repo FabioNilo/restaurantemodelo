@@ -11,12 +11,12 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:-translate-y-0.5",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border-2 border-primary bg-transparent text-primary hover:bg-primary hover:text-primary-foreground",
+        outline: "border-2 border-primary/70 bg-transparent text-secondary hover:bg-primary hover:text-primary-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/90 hover:shadow-lg hover:-translate-y-0.5",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        hero: "bg-gradient-to-r from-primary to-secondary text-primary-foreground hover:shadow-xl hover:-translate-y-1 hover:scale-105",
-        cart: "bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-full",
+        link: "text-gold-ink underline-offset-4 hover:underline",
+        hero: "bg-gradient-to-r from-primary to-brand-gold-soft text-primary-foreground hover:shadow-xl hover:-translate-y-1 hover:scale-105",
+        cart: "bg-primary text-primary-foreground hover:bg-brand-gold-soft rounded-full",
         whatsapp: "bg-[hsl(142_70%_45%)] text-white hover:bg-[hsl(142_70%_40%)] hover:shadow-lg",
       },
       size: {

@@ -16,7 +16,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['DM Sans', 'sans-serif'],
-        display: ['Outfit', 'sans-serif'],
+        display: ['Cormorant Garamond', 'Georgia', 'serif'],
+        caps: ['Montserrat', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -52,6 +53,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        brand: {
+          deep: "hsl(var(--brand-deep))",
+          gold: "hsl(var(--primary))",
+          "gold-soft": "hsl(var(--gold-soft))",
+        },
+        "gold-ink": "hsl(var(--gold-ink))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

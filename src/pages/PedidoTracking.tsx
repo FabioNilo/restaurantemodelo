@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
+import { BRAND } from '@/lib/brand';
 import { cancelPedidoN8n, fetchPedidoStatusN8n } from '@/features/integrations/marmitas-api';
 import type { PedidoStatusItem, PedidoStatusResponse } from '@/features/integrations/n8n-contracts';
 
@@ -60,7 +61,7 @@ function OrderItemLine({ item }: { item: PedidoStatusItem }) {
             </p>
           )}
         </div>
-        <p className="shrink-0 font-display text-lg font-black text-primary">
+        <p className="shrink-0 font-display text-lg font-black text-gold-ink">
           {formatCurrency(Number(item.preco ?? 0) * Number(item.quantidade ?? 1))}
         </p>
       </div>
@@ -142,7 +143,7 @@ export default function PedidoTracking() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 font-bold shadow-soft">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Loader2 className="h-5 w-5 animate-spin text-gold-ink" />
           Carregando pedido...
         </div>
       </main>
@@ -175,10 +176,10 @@ export default function PedidoTracking() {
         </Button>
 
         <section className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-card shadow-card">
-          <div className="bg-gradient-to-br from-secondary via-[#4a0b10] to-[#2a1513] p-6 text-secondary-foreground sm:p-8">
+          <div className="bg-gradient-to-br from-secondary via-brand-deep to-brand-deep p-6 text-secondary-foreground sm:p-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">Restaurante Modelo</p>
+                <p className="brand-caps text-[0.65rem] text-primary">{BRAND.name}</p>
                 <h1 className="mt-2 font-display text-3xl font-black sm:text-4xl">Acompanhe seu pedido</h1>
                 <p className="mt-2 text-sm text-secondary-foreground/80">Criado em {formatDateTime(pedido.created_at)}</p>
               </div>
@@ -192,7 +193,7 @@ export default function PedidoTracking() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-border bg-muted/40 p-4">
                 <div className="flex items-center gap-2 font-display text-lg font-black">
-                  <PackageCheck className="h-5 w-5 text-primary" />
+                  <PackageCheck className="h-5 w-5 text-gold-ink" />
                   Status
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -206,7 +207,7 @@ export default function PedidoTracking() {
 
               <div className="rounded-2xl border border-border bg-muted/40 p-4">
                 <div className="flex items-center gap-2 font-display text-lg font-black">
-                  <Clock3 className="h-5 w-5 text-primary" />
+                  <Clock3 className="h-5 w-5 text-gold-ink" />
                   Cancelamento
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -228,7 +229,7 @@ export default function PedidoTracking() {
 
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-2 font-display text-lg font-black">
-                <MapPin className="h-5 w-5 text-primary" />
+                <MapPin className="h-5 w-5 text-gold-ink" />
                 Entrega
               </div>
               <div className="mt-3 grid gap-1 text-sm">
@@ -241,7 +242,7 @@ export default function PedidoTracking() {
 
             <div>
               <div className="mb-3 flex items-center gap-2 font-display text-lg font-black">
-                <ReceiptText className="h-5 w-5 text-primary" />
+                <ReceiptText className="h-5 w-5 text-gold-ink" />
                 Itens do pedido
               </div>
               <div className="grid gap-3">
@@ -260,7 +261,7 @@ export default function PedidoTracking() {
               </div>
               <div className="text-right">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Total</p>
-                <p className="font-display text-3xl font-black text-primary">{formatCurrency(pedido.valor_total)}</p>
+                <p className="font-display text-3xl font-black text-gold-ink">{formatCurrency(pedido.valor_total)}</p>
               </div>
             </div>
 

@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { getProductOptionLabels, isBeverageCategory, isDessertCategory } from '@/lib/product-category';
+import { DecimalInput } from '@/components/admin/DecimalInput';
+import { getProductOptionLabels } from '@/lib/product-category';
 import { cn } from '@/lib/utils';
 import { Expand, ImageIcon, Loader2, Plus, Trash2, X } from 'lucide-react';
 
@@ -45,22 +46,18 @@ interface PreviewImage {
   src: string;
 }
 
-const DEFAULT_PRODUCT_SIZES: ProdutoTamanho[] = [
-  { codigo: 'tamanho_m', nome: 'M', serve: 'Serve 1 pessoa', preco: 0 },
-  { codigo: 'tamanho_g', nome: 'G', serve: 'Serve 2 pessoas', preco: 0 },
-];
-
-const DEFAULT_BEVERAGE_SIZES: ProdutoTamanho[] = [
-  { codigo: 'lata_350ml', nome: 'Lata', serve: '350 ml', preco: 0 },
-  { codigo: 'garrafa_600ml', nome: 'Garrafa', serve: '600 ml', preco: 0 },
-];
-
 function getEditableImageValue(imageUrl: string | null | undefined) {
   if (!imageUrl?.trim()) {
     return null;
   }
 
-  return /^data:image\//i.test(imageUrl.trim()) ? imageUrl : null;
+  // data: = foto recém-escolhida; https:// = foto já salva no Neon Object Storage.
+  // Sem isso, editar um produto apagaria a foto dele ao salvar.
+  return isDisplayableImage(imageUrl) ? imageUrl.trim() : null;
+}
+
+function isDisplayableImage(imageUrl: string | null | undefined): imageUrl is string {
+  return !!imageUrl && /^(data:image\/|https?:\/\/)/i.test(imageUrl.trim());
 }
 
 function bytesFromDataUrl(dataUrl: string) {
@@ -142,13 +139,8 @@ const getInitialFormData = (marmita?: Marmita | null): MarmitaFormData => ({
   categoria_id: marmita?.categoria_id || null,
   imagem_url: getEditableImageValue(marmita?.imagem_url),
   permite_troca_massa: false,
-  tamanhos:
-    marmita?.tamanhos && marmita.tamanhos.length > 0
-      ? marmita.tamanhos
-      : [
-          { codigo: 'tamanho_m', nome: 'M', serve: 'Serve 1 pessoa', preco: marmita?.preco || 0 },
-          { codigo: 'tamanho_g', nome: 'G', serve: 'Serve 2 pessoas', preco: 0 },
-        ],
+  // Produto simples por padrão; opções (sabores/tamanhos) são adicionadas só quando necessário.
+  tamanhos: marmita?.tamanhos ?? [],
 });
 
 export function MarmitaForm({
@@ -167,12 +159,10 @@ export function MarmitaForm({
   const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [imageProcessing, setImageProcessing] = useState(false);
-  const selectedImageSrc = formData.imagem_url?.startsWith('data:image/') ? formData.imagem_url : null;
+  const selectedImageSrc = isDisplayableImage(formData.imagem_url) ? formData.imagem_url : null;
   const isDialogLayout = layout === 'dialog';
   const selectedCategoria = categorias.find((categoria) => categoria.id === formData.categoria_id);
   const categoryContext = selectedCategoria ?? (formData.categoria_id ? { id: formData.categoria_id, nome: formData.categoria_id } : null);
-  const isSobremesa = isDessertCategory(categoryContext);
-  const isBebida = isBeverageCategory(categoryContext);
   const optionLabels = getProductOptionLabels(categoryContext);
 
   useEffect(() => {
@@ -185,34 +175,6 @@ export function MarmitaForm({
     setImageUploadError(null);
     setImageProcessing(false);
   }, [isDialogLayout, open, marmita]);
-
-  useEffect(() => {
-    if (isSobremesa && formData.tamanhos.length > 0) {
-      setFormData((prev) => ({ ...prev, tamanhos: [] }));
-      return;
-    }
-
-    if (isBebida && (formData.tamanhos.length === 0 || formData.tamanhos.every((tamanho) => tamanho.codigo.startsWith('caixa_')))) {
-      setFormData((prev) => ({
-        ...prev,
-        tamanhos: DEFAULT_BEVERAGE_SIZES.map((tamanho) => ({
-          ...tamanho,
-          preco: prev.preco,
-        })),
-      }));
-      return;
-    }
-
-    if (!isSobremesa && !isBebida && formData.tamanhos.length === 0) {
-      setFormData((prev) => ({
-        ...prev,
-        tamanhos: DEFAULT_PRODUCT_SIZES.map((tamanho) => ({
-          ...tamanho,
-          preco: prev.preco,
-        })),
-      }));
-    }
-  }, [formData.tamanhos, formData.tamanhos.length, isBebida, isSobremesa]);
 
   const handleRemoveImage = () => {
     setImageUploadError(null);
@@ -258,10 +220,13 @@ export function MarmitaForm({
       return;
     }
 
-    const sizesToSave = isSobremesa ? [] : formData.tamanhos;
-    const invalidSize = !isSobremesa && sizesToSave.some(
-      (tamanho) => !tamanho.nome.trim() || !tamanho.serve.trim() || tamanho.preco <= 0
-    );
+    // Opções (sabores/tamanhos) são opcionais em qualquer categoria; o detalhe ("140 ml") também.
+    const sizesToSave = formData.tamanhos.map((tamanho) => ({
+      ...tamanho,
+      nome: tamanho.nome.trim(),
+      serve: tamanho.serve.trim(),
+    }));
+    const invalidSize = sizesToSave.some((tamanho) => !tamanho.nome || tamanho.preco <= 0);
 
     if (invalidSize) {
       alert(optionLabels.invalidMessage);
@@ -308,30 +273,19 @@ export function MarmitaForm({
   };
 
   const addTamanho = () => {
-    setFormData((prev) => {
-      const nextNumber = prev.tamanhos.length + 1;
-      const nextBeverageVolume = nextNumber === 1 ? 350 : nextNumber === 2 ? 600 : nextNumber * 250;
-
-      return {
-        ...prev,
-        tamanhos: [
-          ...prev.tamanhos,
-          isBebida
-            ? {
-                codigo: `volume_${nextBeverageVolume}ml`,
-                nome: `Volume ${nextNumber}`,
-                serve: `${nextBeverageVolume} ml`,
-                preco: prev.preco,
-              }
-            : {
-                codigo: `caixa_${nextNumber}`,
-                nome: `Caixa ${nextNumber}`,
-                serve: `Serve ${nextNumber} pessoa${nextNumber > 1 ? 's' : ''}`,
-                preco: prev.preco,
-              },
-        ],
-      };
-    });
+    setFormData((prev) => ({
+      ...prev,
+      tamanhos: [
+        ...prev.tamanhos,
+        {
+          // Código único mesmo depois de remover opções (o carrinho diferencia itens por ele).
+          codigo: `opcao_${Date.now().toString(36)}_${prev.tamanhos.length + 1}`,
+          nome: '',
+          serve: '',
+          preco: prev.preco,
+        },
+      ],
+    }));
   };
 
   const removeTamanho = (index: number) => {
@@ -345,7 +299,7 @@ export function MarmitaForm({
     <>
       {loadingInitialData ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <Loader2 className="h-6 w-6 animate-spin text-gold-ink" />
         </div>
       ) : (
         <div className={cn('space-y-4 py-4', !isDialogLayout && 'lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.85fr)] lg:items-start lg:gap-6 lg:space-y-0')}>
@@ -356,7 +310,7 @@ export function MarmitaForm({
                 id="nome"
                 value={formData.nome}
                 onChange={(event) => setFormData((prev) => ({ ...prev, nome: event.target.value }))}
-                placeholder="Ex: Nhoque ao Funghi"
+                placeholder="Ex: Bolo de aipim"
               />
             </div>
 
@@ -366,7 +320,7 @@ export function MarmitaForm({
                 id="descricao"
                 value={formData.descricao}
                 onChange={(event) => setFormData((prev) => ({ ...prev, descricao: event.target.value }))}
-                placeholder="Descreva os ingredientes e detalhes..."
+                placeholder="Sabor, tamanho, ingredientes..."
                 rows={3}
               />
             </div>
@@ -399,18 +353,10 @@ export function MarmitaForm({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="preco">Preço (R$) *</Label>
-                <Input
+                <DecimalInput
                   id="preco"
-                  type="number"
-                  step="0.01"
-                  min="0"
                   value={formData.preco}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      preco: parseFloat(event.target.value) || 0,
-                    }))
-                  }
+                  onValueChange={(preco) => setFormData((prev) => ({ ...prev, preco }))}
                 />
               </div>
               <div className="space-y-2">
@@ -445,7 +391,6 @@ export function MarmitaForm({
               />
             </div>
 
-            {!isSobremesa ? (
             <div className="space-y-3 rounded-lg border p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -484,13 +429,10 @@ export function MarmitaForm({
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`tamanho-preco-${index}`}>Preço</Label>
-                        <Input
+                        <DecimalInput
                           id={`tamanho-preco-${index}`}
-                          type="number"
-                          step="0.01"
-                          min="0"
                           value={tamanho.preco}
-                          onChange={(event) => updateTamanho(index, 'preco', event.target.value)}
+                          onValueChange={(preco) => updateTamanho(index, 'preco', preco)}
                         />
                       </div>
                       <Button
@@ -498,24 +440,23 @@ export function MarmitaForm({
                         variant="ghost"
                         size="icon"
                         onClick={() => removeTamanho(index)}
-                        disabled={formData.tamanhos.length <= 1}
-                        aria-label="Remover tamanho"
+                        aria-label="Remover opção"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 ))}
+                {formData.tamanhos.length === 0 && (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-4">
+                    <Label>{optionLabels.emptySimpleTitle}</Label>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {optionLabels.emptySimpleDescription}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-            ) : (
-              <div className="rounded-lg border bg-muted/20 p-4">
-                <Label>{optionLabels.emptySimpleTitle}</Label>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {optionLabels.emptySimpleDescription}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className={cn(!isDialogLayout && 'lg:order-2')}>
@@ -564,10 +505,10 @@ export function MarmitaForm({
                   <div className="flex-1 space-y-3">
                     <div>
                       <p className="font-medium">
-                        {selectedImageSrc ? 'Imagem própria do produto' : 'Card limpo, sem imagem herdada'}
+                        {selectedImageSrc ? 'Imagem própria do produto' : 'Sem foto por enquanto'}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        A edição não carrega mais a galeria antiga do projeto de marmitas. Envie uma imagem nova somente se quiser exibi-la no produto.
+                        Sem foto, o cardápio mostra um card com o ícone da categoria. Envie uma foto do produto quando tiver.
                       </p>
                     </div>
                     <div className="space-y-2 rounded-lg border bg-background p-3">

@@ -8,7 +8,9 @@ describe('isDeliveryClosed', () => {
   });
 
   it('closes outside configured hours', () => {
-    expect(isDeliveryClosed(DEFAULT_SITE_SETTINGS, new Date('2026-07-23T13:30:00.000Z'))).toBe(true);
-    expect(isDeliveryClosed(DEFAULT_SITE_SETTINGS, new Date('2026-07-24T01:30:00.000Z'))).toBe(true);
+    // Horário padrão 07h–19h em America/Bahia (UTC-3).
+    expect(isDeliveryClosed(DEFAULT_SITE_SETTINGS, new Date('2026-07-23T09:30:00.000Z'))).toBe(true);
+    expect(isDeliveryClosed(DEFAULT_SITE_SETTINGS, new Date('2026-07-23T22:30:00.000Z'))).toBe(true);
+    expect(isDeliveryClosed(DEFAULT_SITE_SETTINGS, new Date('2026-07-23T13:30:00.000Z'))).toBe(false);
   });
 });

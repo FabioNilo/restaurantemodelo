@@ -16,26 +16,26 @@ describe('normalizeCatalog', () => {
     expect(normalizeCatalog(catalog).marmitas.map((item) => item.id)).toEqual(['ok']);
   });
 
-  it('orders categories and products with the default restaurant priority when order is missing', () => {
+  it('orders categories and products with the default café priority when order is missing', () => {
     const catalog = {
       categorias: [
-        { id: 'bebidas', nome: 'Bebidas', ordem: null },
-        { id: 'gnocchi', nome: 'Gnocchi', ordem: null },
-        { id: 'sobremesa', nome: 'Sobremesa', ordem: null },
-        { id: 'risottos', nome: 'Risotto', ordem: null },
+        { id: 'bomboniere', nome: 'Bomboniere', ordem: null },
+        { id: 'cafes', nome: 'Cafés', ordem: null },
+        { id: 'sobremesas', nome: 'Sobremesas', ordem: null },
+        { id: 'promocao-do-dia', nome: 'Promoção do dia', ordem: null },
       ],
       marmitas: [
-        { id: 'suco', nome: 'Suco', descricao: null, categoria_id: 'bebidas', preco: 8, estoque: 3, imagem_url: null, disponivel: true },
-        { id: 'tiramissu', nome: 'Tiramissu', descricao: null, categoria_id: 'sobremesa', preco: 18, estoque: 3, imagem_url: null, disponivel: true },
-        { id: 'nhoque', nome: 'Nhoque', descricao: null, categoria_id: 'gnocchi', preco: 40, estoque: 3, imagem_url: null, disponivel: true },
-        { id: 'risoto', nome: 'Risoto', descricao: null, categoria_id: 'risottos', preco: 42, estoque: 3, imagem_url: null, disponivel: true },
+        { id: 'bala', nome: 'Bala', descricao: null, categoria_id: 'bomboniere', preco: 0.25, estoque: 3, imagem_url: null, disponivel: true },
+        { id: 'pudim', nome: 'Pudim', descricao: null, categoria_id: 'sobremesas', preco: 8, estoque: 3, imagem_url: null, disponivel: true },
+        { id: 'cappuccino', nome: 'Cappuccino', descricao: null, categoria_id: 'cafes', preco: 11, estoque: 3, imagem_url: null, disponivel: true },
+        { id: 'combo', nome: 'Combo light', descricao: null, categoria_id: 'promocao-do-dia', preco: 16.9, estoque: 3, imagem_url: null, disponivel: true },
       ],
     } satisfies CatalogoPublicoResponse;
 
     const normalized = normalizeCatalog(catalog);
 
-    expect(normalized.categorias.map((item) => item.id)).toEqual(['risottos', 'gnocchi', 'sobremesa', 'bebidas']);
-    expect(normalized.marmitas.map((item) => item.id)).toEqual(['risoto', 'nhoque', 'tiramissu', 'suco']);
+    expect(normalized.categorias.map((item) => item.id)).toEqual(['promocao-do-dia', 'cafes', 'sobremesas', 'bomboniere']);
+    expect(normalized.marmitas.map((item) => item.id)).toEqual(['combo', 'cappuccino', 'pudim', 'bala']);
   });
 
   it('uses admin category order when it is configured', () => {

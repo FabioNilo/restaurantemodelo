@@ -11,6 +11,7 @@ import { createPedidoN8n, fetchDeliveryFeeN8n, fetchDeliveryZonesN8n } from '@/f
 import type { DeliveryZone } from '@/features/integrations/n8n-contracts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { toast } from '@/hooks/use-toast';
+import { BRAND } from '@/lib/brand';
 import { getCatalogImageSrc } from '@/lib/catalog-image';
 import { buildWhatsAppUrl, DEFAULT_SITE_SETTINGS } from '@/lib/site-settings';
 import type { CustomerData } from '@/types/product';
@@ -337,7 +338,7 @@ export function CartModal({
       .join('\n');
 
     const messageLines = [
-      '*NOVO PEDIDO - Restaurante Modelo*',
+      `*NOVO PEDIDO - ${BRAND.name}*`,
       '',
       '*Cliente*',
       `Nome: ${customerData.name}`,
@@ -488,9 +489,9 @@ export function CartModal({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
 
       <div className="relative w-full max-w-2xl overflow-hidden rounded-[1.75rem] border border-white/60 bg-background shadow-card animate-scale-in">
-        <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-secondary to-[#4a0b10] p-5 text-secondary-foreground">
+        <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-brand-deep to-secondary p-5 text-secondary-foreground">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">Restaurante Modelo</p>
+            <p className="brand-caps text-[0.65rem] text-primary">{BRAND.name}</p>
             <h2 className="font-display text-2xl font-black">
               {step === 'cart' ? 'Seu carrinho' : 'Delivery'}
             </h2>
@@ -530,11 +531,11 @@ export function CartModal({
                               <h4 className="font-display text-base font-black leading-tight">{item.nome}</h4>
                               {item.tamanho_nome && (
                                 <p className="mt-1 text-xs font-bold text-secondary">
-                                  {item.tamanho_nome} · {item.tamanho_serve}
+                                  {item.tamanho_serve ? `${item.tamanho_nome} · ${item.tamanho_serve}` : item.tamanho_nome}
                                 </p>
                               )}
                             </div>
-                            <p className="shrink-0 font-display text-lg font-black text-primary">
+                            <p className="shrink-0 font-display text-lg font-black text-gold-ink">
                               {formatCurrency(item.preco)}
                             </p>
                           </div>
@@ -574,7 +575,7 @@ export function CartModal({
             <div className="grid gap-5">
               <div className="rounded-2xl border border-secondary/20 bg-secondary/10 p-4">
                 <div className="flex items-center gap-2 font-display text-lg font-black">
-                  <Truck className="h-5 w-5 text-primary" />
+                  <Truck className="h-5 w-5 text-gold-ink" />
                   Entrega apenas por delivery
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -651,7 +652,7 @@ export function CartModal({
                     onClick={() => setCustomerData((prev) => ({ ...prev, paymentMethod: 'pix' }))}
                     className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${customerData.paymentMethod === 'pix' ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
                   >
-                    <QrCode className="h-5 w-5 text-primary" />
+                    <QrCode className="h-5 w-5 text-gold-ink" />
                     <span className="font-bold">Pix</span>
                   </button>
                   <button
@@ -659,7 +660,7 @@ export function CartModal({
                     onClick={() => setCustomerData((prev) => ({ ...prev, paymentMethod: 'cartao_credito' }))}
                     className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${customerData.paymentMethod === 'cartao_credito' ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
                   >
-                    <CreditCard className="h-5 w-5 text-primary" />
+                    <CreditCard className="h-5 w-5 text-gold-ink" />
                     <span className="font-bold">Cartão de crédito</span>
                   </button>
                 </div>
@@ -677,7 +678,7 @@ export function CartModal({
           <div className="border-t border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
-                <MapPin className="h-4 w-4 text-primary" />
+                <MapPin className="h-4 w-4 text-gold-ink" />
                 Delivery
               </span>
               <div className="text-right">
@@ -685,7 +686,7 @@ export function CartModal({
                 {step === 'checkout' ? (
                   <p className="text-xs font-bold text-muted-foreground">Entrega: {deliveryFeeSummaryLabel}</p>
                 ) : null}
-                <span className="font-display text-3xl font-black text-primary">{orderTotalSummaryLabel}</span>
+                <span className="font-display text-3xl font-black text-gold-ink">{orderTotalSummaryLabel}</span>
               </div>
             </div>
 

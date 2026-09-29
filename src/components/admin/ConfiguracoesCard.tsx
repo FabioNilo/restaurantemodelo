@@ -146,7 +146,7 @@ export function ConfiguracoesCard() {
       <CardContent className="space-y-6">
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader2 className="h-6 w-6 animate-spin text-gold-ink" />
           </div>
         ) : (
           <>
@@ -156,7 +156,7 @@ export function ConfiguracoesCard() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <Label className="flex items-center gap-2 text-sm font-medium">
-                        <Power className="h-4 w-4 text-primary" />
+                        <Power className="h-4 w-4 text-gold-ink" />
                         Entregas ativas
                       </Label>
                       <p className="text-sm text-muted-foreground">
@@ -177,7 +177,7 @@ export function ConfiguracoesCard() {
 
                 <div className="space-y-2">
                   <Label htmlFor="site-whatsapp" className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-primary" />
+                    <Phone className="h-4 w-4 text-gold-ink" />
                     WhatsApp do site
                   </Label>
                   <Input
@@ -201,7 +201,7 @@ export function ConfiguracoesCard() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="hora-abertura" className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 text-primary" />
+                      <Clock3 className="h-4 w-4 text-gold-ink" />
                       Horário de abertura
                     </Label>
                     <Input
@@ -219,7 +219,7 @@ export function ConfiguracoesCard() {
 
                   <div className="space-y-2">
                     <Label htmlFor="hora-fechamento" className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 text-primary" />
+                      <Clock3 className="h-4 w-4 text-gold-ink" />
                       Horário de fechamento
                     </Label>
                     <Input
@@ -240,7 +240,7 @@ export function ConfiguracoesCard() {
               <div className="space-y-6">
                 <div className="space-y-3">
                   <Label className="flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <CalendarDays className="h-4 w-4 text-gold-ink" />
                     Dias com entrega
                   </Label>
                   <div className="flex flex-wrap gap-2">
@@ -268,7 +268,7 @@ export function ConfiguracoesCard() {
 
                 <div className="space-y-2">
                   <Label htmlFor="mensagem-fechado" className="flex items-center gap-2">
-                    <MessageSquareText className="h-4 w-4 text-primary" />
+                    <MessageSquareText className="h-4 w-4 text-gold-ink" />
                     Mensagem quando fechado
                   </Label>
                   <Textarea
@@ -281,7 +281,7 @@ export function ConfiguracoesCard() {
                         mensagem_fechado: event.target.value
                       }))
                     }
-                    placeholder="Estamos fechados! Nosso horário é de quinta a domingo, das 11 às 22h."
+                    placeholder="Estamos fechados! Nosso horário é das 7h às 19h."
                   />
                 </div>
               </div>

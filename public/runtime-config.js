@@ -1,10 +1,4 @@
-// Demo offline: sem base URL de webhook, o app usa o cardápio local
-// (src/data/cardapio.ts) e o pedido segue direto pelo WhatsApp,
-// sem depender de nenhum backend real.
-window.__MARMITAS_CONFIG__ = {
-  VITE_CHIPTRACK_WEBHOOK_BASE_URL: '',
-  VITE_CHIPTRACK_WEBHOOK_KEY: '',
-  VITE_MARMITAS_PUBLIC_API: 'n8n',
-  VITE_MARMITAS_AUTH_API: 'n8n',
-  VITE_MARMITAS_ADMIN_API: 'n8n',
-};
+// Configuração em tempo de execução (sobrepõe as variáveis VITE_* do build
+// quando preenchida). Vazio = usa o que veio do build: com VITE_API_BASE_URL
+// definido, o site fala com a API; sem ele, roda o modo demo local.
+window.__MARMITAS_CONFIG__ = {};

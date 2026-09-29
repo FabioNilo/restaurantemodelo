@@ -189,7 +189,7 @@ export function MarmitasManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
       </div>
     );
   }
@@ -386,8 +386,8 @@ export function MarmitasManager() {
                           <TableCell>
                             <Badge variant="outline">{getCategoriaName(marmita.categoria_id)}</Badge>
                           </TableCell>
-                          <TableCell className="text-right font-bold text-primary">
-                            R$ {Number(marmita.preco).toFixed(2)}
+                          <TableCell className="text-right font-bold text-gold-ink">
+                            R$ {Number(marmita.preco).toFixed(2).replace('.', ',')}
                           </TableCell>
                           <TableCell className="text-center">{marmita.estoque ?? 0}</TableCell>
                           <TableCell className="text-center">

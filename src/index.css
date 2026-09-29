@@ -1,98 +1,113 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Paleta tirada do logo do Nosso Bistrô Café: disco verde-floresta,
+  arte em dourado metálico e o quase-preto esverdeado do fundo.
+  - primary: dourado metálico (fundos, botões, destaques sobre verde)
+  - gold-ink: dourado antigo escuro, para texto/ícone sobre fundo claro
+    (o dourado metálico não tem contraste suficiente sobre o creme)
+  - secondary: verde-floresta do disco
+  - brand-deep: verde quase preto (header, hero, sobre, rodapé)
+*/
 @layer base {
   :root {
-    --background: 38 45% 96%;
-    --foreground: 98 24% 16%;
+    --background: 40 38% 95%;
+    --foreground: 140 30% 12%;
 
-    --card: 42 50% 98%;
-    --card-foreground: 98 24% 16%;
+    --card: 42 45% 98%;
+    --card-foreground: 140 30% 12%;
 
-    --popover: 42 50% 98%;
-    --popover-foreground: 98 24% 16%;
+    --popover: 42 45% 98%;
+    --popover-foreground: 140 30% 12%;
 
-    --primary: 39 77% 52%;
-    --primary-foreground: 352 65% 17%;
+    --primary: 41 52% 58%;
+    --primary-foreground: 140 40% 10%;
 
-    --secondary: 82 28% 34%;
-    --secondary-foreground: 42 50% 98%;
+    --secondary: 135 38% 17%;
+    --secondary-foreground: 42 45% 92%;
 
-    --muted: 38 34% 90%;
-    --muted-foreground: 96 13% 38%;
+    --muted: 40 28% 89%;
+    --muted-foreground: 135 12% 34%;
 
-    --accent: 82 26% 89%;
-    --accent-foreground: 104 34% 22%;
+    --accent: 100 20% 88%;
+    --accent-foreground: 135 38% 17%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 40 38% 97%;
 
-    --border: 38 24% 82%;
-    --input: 38 24% 82%;
-    --ring: 39 77% 52%;
+    --border: 40 24% 80%;
+    --input: 40 24% 80%;
+    --ring: 41 52% 50%;
 
     --radius: 0.75rem;
 
-    /* Custom tokens */
-    --gradient-hero: linear-gradient(135deg, hsl(38 45% 96%) 0%, hsl(82 30% 90%) 58%, hsl(39 77% 52%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(42 50% 99%) 0%, hsl(38 45% 95%) 100%);
-    --gradient-text: linear-gradient(135deg, hsl(39 77% 52%) 0%, hsl(31 83% 61%) 100%);
-    
-    --shadow-soft: 0 8px 24px -12px hsl(98 24% 16% / 0.22);
-    --shadow-card: 0 18px 42px -24px hsl(98 24% 16% / 0.32);
-    --shadow-card-hover: 0 24px 58px -26px hsl(82 28% 34% / 0.34);
-    --shadow-glow: 0 0 42px hsl(39 77% 52% / 0.32);
+    /* Tokens da marca */
+    --brand-deep: 140 35% 9%;
+    --gold-soft: 40 62% 74%;
+    --gold-ink: 36 58% 30%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --gradient-hero: linear-gradient(135deg, hsl(140 35% 9%) 0%, hsl(135 38% 17%) 60%, hsl(41 52% 40%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(42 45% 99%) 0%, hsl(40 38% 95%) 100%);
+    --gradient-text: linear-gradient(135deg, hsl(41 52% 58%) 0%, hsl(38 60% 72%) 100%);
+
+    --shadow-soft: 0 8px 24px -12px hsl(140 35% 9% / 0.22);
+    --shadow-card: 0 18px 42px -24px hsl(140 35% 9% / 0.32);
+    --shadow-card-hover: 0 24px 58px -26px hsl(135 38% 17% / 0.38);
+    --shadow-glow: 0 0 42px hsl(41 52% 58% / 0.3);
+
+    --sidebar-background: 140 35% 9%;
+    --sidebar-foreground: 42 45% 92%;
+    --sidebar-primary: 41 52% 58%;
+    --sidebar-primary-foreground: 140 40% 10%;
+    --sidebar-accent: 135 30% 15%;
+    --sidebar-accent-foreground: 42 45% 92%;
+    --sidebar-border: 135 25% 18%;
+    --sidebar-ring: 41 52% 58%;
   }
 
   .dark {
-    --background: 150 30% 8%;
-    --foreground: 60 20% 98%;
+    --background: 140 35% 7%;
+    --foreground: 42 45% 92%;
 
-    --card: 150 25% 12%;
-    --card-foreground: 60 20% 98%;
+    --card: 138 30% 11%;
+    --card-foreground: 42 45% 92%;
 
-    --popover: 150 25% 12%;
-    --popover-foreground: 60 20% 98%;
+    --popover: 138 30% 11%;
+    --popover-foreground: 42 45% 92%;
 
-    --primary: 142 55% 50%;
-    --primary-foreground: 150 30% 8%;
+    --primary: 41 52% 58%;
+    --primary-foreground: 140 40% 10%;
 
-    --secondary: 30 85% 55%;
-    --secondary-foreground: 150 30% 8%;
+    --secondary: 135 38% 17%;
+    --secondary-foreground: 42 45% 92%;
 
-    --muted: 150 20% 18%;
-    --muted-foreground: 60 10% 65%;
+    --muted: 136 22% 16%;
+    --muted-foreground: 40 15% 68%;
 
-    --accent: 142 30% 20%;
-    --accent-foreground: 142 55% 70%;
+    --accent: 135 28% 20%;
+    --accent-foreground: 40 62% 74%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 40%;
+    --destructive-foreground: 42 45% 96%;
 
-    --border: 150 20% 20%;
-    --input: 150 20% 20%;
-    --ring: 142 55% 50%;
+    --border: 135 22% 20%;
+    --input: 135 22% 20%;
+    --ring: 41 52% 58%;
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --gold-ink: 40 62% 70%;
+
+    --sidebar-background: 140 35% 7%;
+    --sidebar-foreground: 42 45% 92%;
+    --sidebar-primary: 41 52% 58%;
+    --sidebar-primary-foreground: 140 40% 10%;
+    --sidebar-accent: 135 28% 15%;
+    --sidebar-accent-foreground: 42 45% 92%;
+    --sidebar-border: 135 22% 18%;
+    --sidebar-ring: 41 52% 58%;
   }
 }
 
@@ -105,12 +120,52 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'DM Sans', sans-serif;
     background:
-      radial-gradient(circle at top left, hsl(39 77% 52% / 0.14), transparent 34rem),
-      linear-gradient(180deg, hsl(38 45% 96%) 0%, hsl(38 38% 92%) 100%);
+      radial-gradient(circle at top left, hsl(41 52% 58% / 0.1), transparent 34rem),
+      linear-gradient(180deg, hsl(40 38% 95%) 0%, hsl(40 32% 91%) 100%);
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  /* A Cormorant usa algarismos "old-style" por padrão; em preços isso fica irregular. */
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-variant-numeric: lining-nums;
+  }
+
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+@layer components {
+  /* Rótulo em caixa-alta espaçada, como o "BISTRÔ CAFÉ" do logo. */
+  .brand-caps {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+  }
+
+  /* Filete dourado com losango central, inspirado no divisor do logo. */
+  .divider-gold {
+    position: relative;
+    display: block;
+    height: 1px;
+    width: 9rem;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary)) 20%, hsl(var(--primary)) 80%, transparent);
+  }
+
+  .divider-gold::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 7px;
+    width: 7px;
+    background: hsl(var(--primary));
+    transform: translate(-50%, -50%) rotate(45deg);
   }
 }
 
@@ -141,6 +196,14 @@
   .shadow-glow {
     box-shadow: var(--shadow-glow);
   }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Smooth scrolling */
@@ -158,10 +221,10 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.3);
+  background: hsl(var(--secondary) / 0.35);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
+  background: hsl(var(--secondary) / 0.55);
 }

@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Check, ChefHat, CupSoda, Plus, User, Users } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Check, ChevronDown, CupSoda, Plus, User, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MarmitaListItem } from '@/types/product';
 import { useCart } from '@/context/CartContext';
 import { getCatalogImageSources } from '@/lib/catalog-image';
-import { isBeverageCategory } from '@/lib/product-category';
+import { getCategoryIcon, isBeverageCategory } from '@/lib/product-category';
 import { ProductImageFallback } from '@/components/ProductImageFallback';
 
 interface ProductCardProps {
@@ -12,6 +12,9 @@ interface ProductCardProps {
   categoriaNome?: string;
   index: number;
 }
+
+// Acima disso, as opções viram uma lista suspensa (ex.: 15 sabores de picolé).
+const MAX_OPTION_BUTTONS = 3;
 
 function formatCurrency(value: number) {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
@@ -22,6 +25,11 @@ function PortionIcon({ serve, isBeverage }: { serve?: string; isBeverage?: boole
     return <CupSoda className="h-3.5 w-3.5" aria-label="Volume da bebida" />;
   }
 
+  // Ícone de pessoas só faz sentido quando o detalhe fala de porção ("Serve 2 pessoas").
+  if (!/pessoa/i.test(serve ?? '')) {
+    return null;
+  }
+
   const isSinglePortion = /\b1\b|uma|um/i.test(serve ?? '');
   const Icon = isSinglePortion ? User : Users;
 
@@ -30,12 +38,14 @@ function PortionIcon({ serve, isBeverage }: { serve?: string; isBeverage?: boole
 
 export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps) {
   const { addToCart } = useCart();
+  const selectId = useId();
   const imageSources = getCatalogImageSources(marmita.imagem_url);
   const [imageFailed, setImageFailed] = useState(false);
   const [selectedSizeCode, setSelectedSizeCode] = useState(marmita.tamanhos?.[0]?.codigo ?? '');
   const [addedSizeCode, setAddedSizeCode] = useState<string | null>(null);
   const showImage = imageSources && !imageFailed;
   const sizes = marmita.tamanhos ?? [];
+  const useDropdown = sizes.length > MAX_OPTION_BUTTONS;
   const selectedSize = sizes.find((size) => size.codigo === selectedSizeCode) ?? sizes[0];
   const lowerPrice = sizes.length > 0
     ? Math.min(...sizes.map((size) => size.preco))
@@ -45,7 +55,7 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
     ? { id: marmita.categoria_id ?? categoriaNome ?? '', nome: categoriaNome ?? marmita.categoria_id ?? '' }
     : null;
   const isBebida = isBeverageCategory(categoryContext);
-  const CategoryIcon = isBebida ? CupSoda : ChefHat;
+  const CategoryIcon = getCategoryIcon(categoryContext);
 
   const handleAddToCart = () => {
     addToCart({ ...marmita, preco: currentPrice }, selectedSize);
@@ -55,10 +65,10 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
 
   return (
     <article
-      className="group relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-card shadow-card transition-all duration-500 hover:-translate-y-1 hover:shadow-card-hover animate-fade-in-up"
+      className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-primary/25 bg-card shadow-card transition-all duration-500 hover:-translate-y-1 hover:border-primary/50 hover:shadow-card-hover animate-fade-in-up"
       style={{ animationDelay: `${index * 0.06}s` }}
     >
-      <div className="relative h-56 overflow-hidden bg-muted">
+      <div className="relative h-44 overflow-hidden bg-muted">
         {showImage ? (
           <img
             src={imageSources.src}
@@ -74,23 +84,23 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
           <ProductImageFallback
             name={marmita.nome}
             categoryName={categoriaNome}
-            price={lowerPrice}
+            categoryId={marmita.categoria_id}
           />
         )}
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+        {showImage && <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />}
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           {categoriaNome && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/90 px-3 py-1 text-xs font-bold text-foreground shadow-soft backdrop-blur">
-              <CategoryIcon className="h-3.5 w-3.5 text-primary" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-background/90 px-3 py-1 text-xs font-bold text-secondary shadow-soft backdrop-blur">
+              <CategoryIcon className="h-3.5 w-3.5 text-gold-ink" />
               {categoriaNome}
             </span>
           )}
         </div>
       </div>
 
-      <div className="space-y-5 p-5">
-        <div className="space-y-2">
-          <h3 className="font-display text-xl font-extrabold leading-tight text-card-foreground">
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="space-y-1.5">
+          <h3 className="font-display text-2xl font-bold leading-tight text-card-foreground">
             {marmita.nome}
           </h3>
           {marmita.descricao && (
@@ -100,7 +110,30 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
           )}
         </div>
 
-        {sizes.length > 0 && (
+        {sizes.length > 0 && useDropdown && (
+          <div className="space-y-1.5">
+            <label htmlFor={selectId} className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Escolha o sabor
+            </label>
+            <div className="relative">
+              <select
+                id={selectId}
+                value={selectedSize?.codigo ?? ''}
+                onChange={(event) => setSelectedSizeCode(event.target.value)}
+                className="h-11 w-full appearance-none rounded-2xl border border-border bg-muted/60 pl-3 pr-10 text-sm font-semibold text-foreground transition-colors hover:border-primary/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {sizes.map((size) => (
+                  <option key={size.codigo} value={size.codigo}>
+                    {size.nome}{size.serve ? ` · ${size.serve}` : ''} — {formatCurrency(size.preco)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            </div>
+          </div>
+        )}
+
+        {sizes.length > 0 && !useDropdown && (
           <div className="grid gap-2">
             {sizes.map((size) => (
               <button
@@ -116,12 +149,14 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
               >
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground">{size.nome}</p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <PortionIcon serve={size.serve} isBeverage={isBebida} />
-                    {size.serve}
-                  </p>
+                  {size.serve && (
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <PortionIcon serve={size.serve} isBeverage={isBebida} />
+                      {size.serve}
+                    </p>
+                  )}
                 </div>
-                <p className="shrink-0 font-display text-lg font-extrabold text-primary">
+                <p className="shrink-0 font-display text-xl font-bold text-gold-ink">
                   {formatCurrency(size.preco)}
                 </p>
               </button>
@@ -136,21 +171,21 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              {sizes.length > 0 ? 'A partir de' : 'Preço'}
+              {useDropdown ? 'Preço' : sizes.length > 0 ? 'A partir de' : 'Preço'}
             </p>
-            <p className="font-display text-2xl font-black text-primary">
-              {formatCurrency(lowerPrice)}
+            <p className="font-display text-3xl font-bold text-gold-ink">
+              {formatCurrency(useDropdown ? currentPrice : lowerPrice)}
             </p>
           </div>
 
           <Button
-            variant="default"
+            variant="secondary"
             size="sm"
             onClick={handleAddToCart}
-            className="h-11 rounded-full px-4 font-bold"
+            className="h-11 rounded-full px-4 font-bold text-primary"
           >
             <Plus className="mr-1 h-4 w-4" />
             Adicionar

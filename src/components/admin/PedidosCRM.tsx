@@ -212,7 +212,7 @@ export function PedidosCRM() {
 
           {pedidoDetailQuery.isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-gold-ink" />
             </div>
           ) : selectedPedido ? (
             <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-6">
@@ -281,7 +281,7 @@ export function PedidosCRM() {
                       </div>
                       <div className="flex items-center justify-between border-t pt-2">
                         <span className="font-semibold">Total</span>
-                        <span className="text-2xl font-black text-primary">
+                        <span className="text-2xl font-black text-gold-ink">
                           {formatCurrency(selectedFinancialSummary?.total ?? selectedPedido.valor_total)}
                         </span>
                       </div>
@@ -359,7 +359,7 @@ export function PedidosCRM() {
           </DialogHeader>
           {noteDetailQuery.isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-gold-ink" />
             </div>
           ) : (
             <div className="space-y-2">
@@ -479,7 +479,7 @@ export function PedidosCRM() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Faturamento</CardTitle>
           </CardHeader>
           <CardContent>
-            <span className="text-2xl font-bold text-primary">
+            <span className="text-2xl font-bold text-gold-ink">
               {formatCurrency(resumo.faturamento)}
             </span>
           </CardContent>
@@ -490,7 +490,7 @@ export function PedidosCRM() {
         <CardContent className="pt-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
             </div>
           ) : pedidos.length === 0 ? (
             <p className="py-12 text-center text-muted-foreground">Nenhum pedido encontrado.</p>

@@ -12,8 +12,9 @@ export const DEMO_ADMIN_USERNAME = 'admin';
 export const DEMO_ADMIN_PASSWORD = 'demo1234';
 const DEMO_TOKEN = 'demo-admin-token';
 
-const STORAGE_KEY_CARDAPIO = 'restaurante_demo_cardapio_v1';
-const STORAGE_KEY_CONFIG = 'restaurante_demo_config_v1';
+// Chaves próprias do Nosso Bistrô: quem já abriu a demo antiga recebe o cardápio novo.
+const STORAGE_KEY_CARDAPIO = 'nossobistro_demo_cardapio_v1';
+const STORAGE_KEY_CONFIG = 'nossobistro_demo_config_v1';
 
 interface DemoState {
   categorias: Categoria[];

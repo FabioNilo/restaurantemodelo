@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { hasN8NBaseUrl } from '@/lib/api';
+import { BRAND } from '@/lib/brand';
 import { DEMO_ADMIN_PASSWORD, DEMO_ADMIN_USERNAME } from '@/lib/demo-backend';
 
 const authSchema = z.object({
@@ -70,14 +71,14 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-accent/20 to-background p-4">
-      <Card className="w-full max-w-md shadow-card">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_50%_0%,hsl(var(--secondary))_0%,hsl(var(--brand-deep))_70%)] p-4">
+      <Card className="w-full max-w-md border-primary/30 shadow-card">
         <CardHeader className="text-center">
-          <div className="mb-4 flex items-center justify-center gap-2">
-            <Leaf className="h-8 w-8 text-primary" />
-            <span className="font-display text-2xl font-bold text-gradient">Restaurante Modelo</span>
+          <div className="mb-4 flex flex-col items-center gap-3">
+            <img src={BRAND.logo.md} alt={BRAND.name} width={112} height={112} className="h-28 w-28 rounded-full ring-2 ring-primary/50 shadow-glow" />
+            <span className="divider-gold" aria-hidden="true" />
           </div>
-          <CardTitle>Área Administrativa</CardTitle>
+          <CardTitle className="font-display text-3xl text-secondary">Área administrativa</CardTitle>
           <CardDescription>
             Entre com as credenciais fornecidas pelo administrador.
           </CardDescription>

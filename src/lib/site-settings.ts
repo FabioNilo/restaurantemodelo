@@ -12,17 +12,17 @@ export interface ConfiguracoesSite {
 
 export type ConfiguracoesSiteUpdate = Partial<ConfiguracoesSite>;
 
-export const SITE_OPEN_MESSAGE = 'Faça seu pedido, funcionamos das 11 às 22h.';
-export const SITE_CLOSED_MESSAGE = 'Estamos fechados! Nosso horário é das 11 às 22h.';
+// Horário ainda não confirmado com o cliente — ajustável em /admin (Configurações).
+export const SITE_OPEN_MESSAGE = 'Faça seu pedido, funcionamos das 7h às 19h.';
+export const SITE_CLOSED_MESSAGE = 'Estamos fechados para o delivery agora, mas voltamos já já! Nosso horário é das 7h às 19h.';
 
 export const DEFAULT_SITE_SETTINGS: ConfiguracoesSite = {
   id: 1,
-  // Demo: aponta pro WhatsApp do próprio dev (mesmo número do "Desenvolvido por" no rodapé).
-  // Troque para o número do restaurante antes de usar em produção.
-  whatsapp_numero: '5573999099040',
+  // WhatsApp do Nosso Bistrô Café (do cardápio de delivery).
+  whatsapp_numero: '5573998040470',
   entregas_ativas: true,
-  hora_abertura: '11:00:00',
-  hora_fechamento: '22:00:00',
+  hora_abertura: '07:00:00',
+  hora_fechamento: '19:00:00',
   dias_entrega: [0, 1, 2, 3, 4, 5, 6],
   mensagem_fechado: SITE_CLOSED_MESSAGE,
   timezone: 'America/Bahia',

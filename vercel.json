@@ -1,28 +1,18 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["iad1"],
   "headers": [
     {
       "source": "/hero/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=2592000, immutable"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000, immutable" }]
     },
     {
-      "source": "/menu/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=2592000, immutable"
-        }
-      ]
+      "source": "/brand/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
     }
   ],
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/:path*", "destination": "/api/index?__path=:path*" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

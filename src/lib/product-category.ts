@@ -1,22 +1,72 @@
+import {
+  BadgePercent,
+  CakeSlice,
+  Candy,
+  Citrus,
+  Coffee,
+  Cookie,
+  Croissant,
+  CupSoda,
+  Dessert,
+  GlassWater,
+  IceCreamCone,
+  Utensils,
+  Wine,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Categoria, CategoriaListItem, MarmitaListItem } from '@/types/product';
 
 type CategoryInput = Pick<Categoria, 'id' | 'nome'> | null | undefined;
 type SortableCategory = Pick<CategoriaListItem, 'id' | 'nome' | 'ordem'>;
 
+// Ordem padrão (a mesma do cardápio de delivery do Nosso Bistrô) para
+// categorias sem "ordem" definida. Chaves já normalizadas (sem acento).
 const DEFAULT_CATEGORY_ORDER: Record<string, number> = {
-  risottos: 1,
-  risotto: 1,
-  tagliatelle: 2,
-  talharim: 2,
-  gnocchi: 3,
-  nhoque: 3,
-  sobremesa: 4,
-  sobremesas: 4,
-  bebidas: 5,
-  bebida: 5,
+  'promocao-do-dia': 1,
+  'promocao do dia': 1,
+  tortas: 2,
+  salgados: 3,
+  cafes: 4,
+  refrigerantes: 5,
+  'bolos-caseiros': 6,
+  'bolos caseiros': 6,
+  biscoitos: 7,
+  aguas: 8,
+  picoles: 9,
+  doces: 10,
+  polpas: 11,
+  sobremesa: 12,
+  sobremesas: 12,
+  licor: 13,
+  licores: 13,
+  bomboniere: 14,
+  bebidas: 15,
+  bebida: 15,
 };
 
-function normalizeCategoryValue(value: string | null | undefined) {
+// Ícone por categoria, usado no selo do card e na imagem de fallback.
+// Casa por palavra-chave para funcionar também com categorias criadas no admin.
+const CATEGORY_ICON_RULES: Array<[RegExp, LucideIcon]> = [
+  [/promo/, BadgePercent],
+  [/torta|bolo/, CakeSlice],
+  [/salgad|lanche|misto/, Croissant],
+  [/cafe|cappuc|capuc/, Coffee],
+  [/refri|bebida|suco/, CupSoda],
+  [/agua/, GlassWater],
+  [/biscoit|cookie/, Cookie],
+  [/picole|sorvete/, IceCreamCone],
+  [/polpa|fruta/, Citrus],
+  [/licor|vinho/, Wine],
+  [/bombon|bala|doce/, Candy],
+  [/sobremesa/, Dessert],
+];
+
+export function getCategoryIcon(category: CategoryInput): LucideIcon {
+  const key = `${normalizeCategoryValue(category?.id)} ${normalizeCategoryValue(category?.nome)}`;
+  return CATEGORY_ICON_RULES.find(([pattern]) => pattern.test(key))?.[1] ?? Utensils;
+}
+
+export function normalizeCategoryValue(value: string | null | undefined) {
   return (value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -95,29 +145,50 @@ export function sortProductsByCategoryOrder<T extends Pick<MarmitaListItem, 'cat
 export function getProductOptionLabels(category: CategoryInput) {
   if (isBeverageCategory(category)) {
     return {
-      sectionTitle: 'Volumes da bebida',
-      sectionDescription: 'Configure as embalagens e volumes que aparecem no cardápio e no carrinho.',
-      nameLabel: 'Embalagem',
+      sectionTitle: 'Opções da bebida',
+      sectionDescription: 'Sabores, embalagens ou volumes que o cliente escolhe no cardápio e no carrinho.',
+      nameLabel: 'Opção',
       namePlaceholder: 'Lata',
-      detailLabel: 'Volume',
+      detailLabel: 'Detalhe (opcional)',
       detailPlaceholder: '350 ml',
-      addLabel: 'Adicionar volume',
+      addLabel: 'Adicionar opção',
       emptySimpleTitle: 'Produto simples',
-      emptySimpleDescription: 'Bebidas podem usar apenas o preço principal ou ter volumes configuráveis.',
-      invalidMessage: 'Preencha embalagem, volume e preço de todos os volumes.',
+      emptySimpleDescription: 'Sem opções, o item usa apenas o preço principal.',
+      invalidMessage: 'Preencha o nome e o preço de todas as opções.',
     };
   }
 
   return {
-    sectionTitle: 'Tamanhos',
-    sectionDescription: 'Esses valores aparecem nos cards do cardápio e no carrinho.',
-    nameLabel: 'Nome',
-    namePlaceholder: 'M',
-    detailLabel: 'Porção',
-    detailPlaceholder: 'Serve 1 pessoa',
-    addLabel: 'Adicionar',
+    sectionTitle: 'Opções / sabores',
+    sectionDescription: 'Sabores, tamanhos ou variações que o cliente escolhe no cardápio e no carrinho.',
+    nameLabel: 'Opção',
+    namePlaceholder: 'Morango',
+    detailLabel: 'Detalhe (opcional)',
+    detailPlaceholder: '140 ml',
+    addLabel: 'Adicionar opção',
     emptySimpleTitle: 'Produto simples',
-    emptySimpleDescription: 'Sobremesas usam apenas o preço principal e não precisam de tamanho M ou G.',
-    invalidMessage: 'Preencha nome, porção e preço de todos os tamanhos.',
+    emptySimpleDescription: 'Sem opções, o item usa apenas o preço principal.',
+    invalidMessage: 'Preencha o nome e o preço de todas as opções.',
   };
+}
+
+// Busca do cardápio: ignora acento e caixa, procura em nome, descrição e opções.
+export function productMatchesSearch(
+  product: Pick<MarmitaListItem, 'nome' | 'descricao' | 'tamanhos'>,
+  query: string,
+  categoryName?: string
+) {
+  const normalizedQuery = normalizeCategoryValue(query);
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const haystack = normalizeCategoryValue(
+    [product.nome, product.descricao, categoryName, ...(product.tamanhos ?? []).map((size) => size.nome)]
+      .filter(Boolean)
+      .join(' ')
+  );
+
+  return normalizedQuery.split(/\s+/).every((term) => haystack.includes(term));
 }

@@ -1,50 +1,167 @@
-# Restaurante Modelo — Demo
+# Nosso Bistrô Café — Cardápio digital
 
-Demo genérica de cardápio digital + pedido via WhatsApp + painel admin, para mostrar em reuniões com donos de restaurante (Pacote 1/2 do plano de prospecção). Clonada a partir do `massas-italianas-express` (projeto real da Pasta Brasiliana) e desmarcada: sem fotos, dados ou backend do cliente.
+Cardápio digital + pedido via WhatsApp + painel admin (dados e fotos no Neon, hospedagem na Vercel) do **Nosso Bistrô Café (Ilhéus - BA)**. Montado sobre o esqueleto da demo `restaurantemodelo` (clonada do `massas-italianas-express`), com a identidade visual do logo do cliente: verde-floresta, dourado metálico, "Nosso" em serifa (Cormorant Garamond) e "BISTRÔ · CAFÉ" em caixa-alta espaçada (Montserrat).
 
-## Como funciona sem backend
+## Identidade visual
 
-Não depende de nenhum n8n/Supabase real. `public/runtime-config.js` está com a base URL do webhook vazia, então tudo roda em modo "demo local":
+- **Fonte da verdade da marca**: `src/lib/brand.ts` (nome, cidade, WhatsApp exibido, Instagram, caminhos do logo). Os componentes leem daqui em vez de repetir o nome.
+- **Paleta**: tokens em `src/index.css`.
+  - `primary`: dourado metálico, para fundos, botões e destaques sobre o verde.
+  - `gold-ink`: dourado escuro, para **texto/ícone sobre fundo claro**. O dourado metálico não tem contraste suficiente sobre o creme.
+  - `secondary`: verde-floresta do logo.
+  - `brand-deep`: verde quase preto do header, hero, "Sobre" e rodapé.
+- **Logo**: `docs/nosso-bistro-cafe-logo-hd-v2.png` é um print do avatar do Instagram. O script abaixo recorta só o disco verde (sem o anel colorido nem o fundo preto) e gera logo, favicon, apple-touch-icon e og-image em `public/brand/`:
 
-- o cardápio público vem de `src/lib/demo-backend.ts`, que lê/grava em `localStorage` (semeado a partir de `src/data/cardapio.ts` na primeira visita)
-- o botão "Enviar pedido no WhatsApp" monta a mensagem e abre o WhatsApp direto (é a mesma lógica de produção: tenta registrar no backend, falha silenciosamente, e segue pelo WhatsApp mesmo assim)
-- por padrão o pedido vai para `5573999099040` (mesmo número do "Desenvolvido por" no rodapé) — mude em `/admin` (Configurações) ou no fallback em `src/lib/site-settings.ts` (`DEFAULT_SITE_SETTINGS.whatsapp_numero`)
+  ```sh
+  node scripts/build-brand-assets.mjs
+  ```
 
-## Admin funcional (`/admin`)
+  Quando o cliente mandar o arquivo original (PNG transparente ou vetor), basta trocar a origem no script e rodar de novo.
+- **Hero**: foto livre do Unsplash (cappuccinos com latte art), baixada e recortada por `node scripts/fetch-hero-photo.mjs`. Troque por uma foto real do café quando houver.
 
-Login em `/auth` com **usuário `admin` / senha `demo1234`** (mostrado na própria tela de login quando não há backend configurado). Sem nenhum n8n real, o admin funciona de verdade via `localStorage`:
+## Cardápio
 
-- **Cardápio**: criar, editar, excluir produtos e categorias — e o cardápio público (`/`) atualiza na hora, porque os dois lêem o mesmo estado local. É o argumento de venda do Pacote 1 ("o dono atualiza preço/cardápio sem depender de você") funcionando ao vivo.
-- **Configurações**: trocar o número de WhatsApp e o horário de funcionamento também reflete imediatamente no site público (banner de aberto/fechado e destino do pedido).
-- **Pedidos (CRM) e Caixa**: continuam mostrando erro/vazio — não há pedidos reais numa demo que roda só no navegador. Não abrir essas abas ao vivo.
-- **Trocar senha e Gestores**: não funcionam nesta demo (sem backend real por trás).
+- Transcrito de `docs/Nosso Bistro Café - Delivery.pdf` para `src/data/cardapio.ts`: 14 categorias, na mesma ordem do PDF.
+- Itens com vários sabores ou tamanhos viram **um produto com opções** (campo `tamanhos`): Picolé, Mini sorvete, Polpa de fruta, Licor artesanal, Biscoito caseiro, Água, refrigerantes por marca, Munguzá, Bolo no pote e Morango cravejado.
+  - Até 3 opções aparecem como botões no card.
+  - Mais que isso vira uma lista suspensa "Escolha o sabor".
+- Sem fotos por enquanto: cada card mostra um fallback verde com louros e o ícone da categoria. O dono sobe as fotos pelo admin, e elas vão para o Neon Object Storage.
+- O site público tem **busca** (sem acento, procura também nos sabores) e **abas de categoria fixas no topo** ao rolar.
+- No admin (`/admin` → Cardápio), o dono cria, edita e exclui produtos e categorias e sobe as fotos.
+  - Produtos são simples por padrão. "Adicionar opção" cria sabores ou tamanhos, e o detalhe ("140 ml", "1 kg") é opcional.
+  - O preço aceita vírgula ou ponto.
+  - Um produto só aparece no site com **estoque > 0** e "Disponível" ligado.
 
-Cada visitante tem seu próprio estado (é local ao navegador dele) — nada é compartilhado entre quem está vendo a demo. Para zerar e voltar ao cardápio original, apague o `localStorage` do site ou rode `localStorage.clear()` no console.
+## Arquitetura
 
-## Fotos do cardápio e do hero
+```
+navegador ──► Vercel CDN ──► site estático (Vite/React, dist/)
+                  │
+                  └── /api/* ──► 1 Vercel Function (api/index.ts → server/app.ts, Hono)
+                                     ├── Neon Postgres  (cardápio, configurações, usuários)
+                                     └── Neon Object Storage, bucket "produtos" (fotos)
+navegador ──► fotos direto do bucket (leitura pública, sem passar pela Vercel)
+```
 
-As fotos em `public/menu/` e `public/hero/` são do Unsplash (licença livre, uso comercial permitido), escolhidas por afinidade com a descrição de cada prato — sem marca/logo visível (por isso a lata de refrigerante é lisa, sem rótulo). Foram baixadas com `node scripts/fetch-menu-photos.mjs` e `node scripts/fetch-hero-photo.mjs`. Não são fotos de nenhum cliente — troque pelas fotos reais do restaurante antes de fechar um contrato.
+- **API em `server/`**: app [Hono](https://hono.dev) sem dependência da Vercel.
+  - As rotas seguem o contrato que o front já usava com o n8n (`src/features/integrations/n8n-contracts.ts`), com o envelope `{ success, data }`.
+  - `api/index.ts` adapta o app para Vercel Functions. O `vercel.json` reescreve `/api/*` para essa **única função** (o Hobby permite 12).
+  - `server/node.ts` roda o mesmo app num Node comum: desenvolvimento local e, no futuro, a VPS.
+- **Banco**: projeto Neon `nosso-bistro-cafe` (`soft-cake-33779792`), região `aws-us-east-1`, a mesma das funções da Vercel (`iad1`).
+  - Branch `production`: usada pelo site no ar.
+  - Branch `dev`: usada no desenvolvimento local e nos previews.
+  - Schema em `db/migrations/`.
+- **Fotos**: o admin comprime a imagem no navegador (até 500 KB). A API envia para o bucket `produtos` (leitura pública) e grava a URL no produto.
+  - Trocar a foto ou excluir o produto apaga o arquivo antigo.
+  - O Object Storage do Neon não existe em São Paulo, por isso o projeto fica em us-east-1.
+- **Login**: senha com bcrypt na tabela `usuarios_admin` e token JWT (12 h) assinado com `SESSION_SECRET`. Trocar a senha encerra as sessões abertas em outros aparelhos.
+- **Cache**: o catálogo e o status do site ficam 30 s no cache da CDN da Vercel. Uma edição no admin leva **até ~1 min** para aparecer para todos os visitantes.
+- **Módulos desligados nesta versão**: Pedidos/CRM, Caixa, Taxas de entrega e Gestores.
+  - As abas e cards somem do admin (`src/lib/features.ts`).
+  - O carrinho segue como antes: bairro digitado, taxa "a combinar" e pedido enviado pelo WhatsApp.
+  - Para ligar um módulo quando o backend dele existir: `VITE_FEATURE_PEDIDOS=true` etc.
+
+## Variáveis de ambiente
+
+Modelo em `.env.example`. Os valores reais (gerados na criação do projeto Neon) estão em arquivos **locais, fora do git**:
+
+| Arquivo | Para quê |
+|---|---|
+| `.env.local` | desenvolvimento local, aponta para a branch `dev` |
+| `.env.vercel-production.local` | valores para colar na Vercel (Production) |
+| `.admin-production.local` | login inicial do painel em produção. **Não vai para a Vercel.** |
+
+| Variável | Onde | Observação |
+|---|---|---|
+| `VITE_API_BASE_URL` | Vercel (Production e Preview) | `/api`. Vazio = modo demo |
+| `DATABASE_URL` | Vercel | string *pooled*. Production usa a branch `production`; Preview pode usar a `dev` |
+| `SESSION_SECRET` | Vercel | 32+ caracteres aleatórios (`openssl rand -base64 48`). Trocar derruba todas as sessões |
+| `NEON_STORAGE_ENDPOINT` | Vercel | endpoint S3 da branch (Console Neon → Connect → Storage) |
+| `NEON_STORAGE_REGION` | Vercel | `us-east-1` |
+| `NEON_STORAGE_BUCKET` | Vercel | `produtos` |
+| `NEON_STORAGE_ACCESS_KEY_ID` / `NEON_STORAGE_SECRET_ACCESS_KEY` | Vercel | credencial `storage:write` (vale para a `production` e a `dev`) |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | só local | usados pelos scripts `db:seed` e `admin:password` |
+
+O prefixo é `NEON_STORAGE_*`, e não `AWS_*`, porque a Vercel reserva os nomes `AWS_*`.
+
+## Deploy na Vercel (plano Hobby)
+
+1. Importe o repositório na Vercel. O preset **Vite** é detectado sozinho: build `npm run build`, saída `dist`.
+2. Em *Settings → Environment Variables*, cadastre as variáveis de `.env.vercel-production.local` para **Production**. Para **Preview**, use as mesmas, trocando `DATABASE_URL` e `NEON_STORAGE_ENDPOINT` pelos da branch `dev` (estão em `.env.local`).
+3. Faça o deploy e confira:
+   - `https://<projeto>.vercel.app/api/health` deve responder `{"ok":true}`;
+   - o cardápio carrega do banco;
+   - o login funciona com o usuário de `.admin-production.local`.
+4. **Troque a senha do admin no primeiro acesso**, em Admin → Configurações → Credenciais.
+
+O banco de produção já está migrado e populado. Para rodar de novo, por exemplo depois de uma migração nova:
+
+```sh
+ENV_FILE=.env.vercel-production.local npm run db:migrate
+```
+
+**Limites do Hobby, conferidos na documentação da Vercel em set/2026:**
+- 1 milhão de invocações por mês e 4 h de CPU ativa;
+- 100 GB de tráfego;
+- até 12 funções por deploy (este projeto usa 1);
+- corpo de requisição de até 4,5 MB (as fotos chegam com no máximo 500 KB).
+
+Pelos termos, o Hobby é para **uso não comercial**. Se o site crescer ou for formalizado, mude a conta para Pro, sem nenhuma mudança de código, ou leve a API para a VPS (seção abaixo).
 
 ## Rodar localmente
 
 ```sh
 npm install
-npm run dev
+npm run dev:api   # API em http://localhost:8787 (usa .env.local → branch "dev" do Neon)
+npm run dev       # site em http://localhost:8080, com proxy de /api para a API local
+npm test
 ```
 
-## O que NÃO está pronto nesta demo
+Sem `VITE_API_BASE_URL` (por exemplo, sem `.env.local`), o site roda no **modo demo**:
+- o cardápio fica no `localStorage`, semeado a partir de `src/data/cardapio.ts`;
+- o login é `admin` / `demo1234`.
 
-- **Pedidos (CRM) e Caixa** no admin: sem dados reais, mostram erro/vazio.
-- **Trocar senha e Gestores** no admin: não funcionam sem backend real.
-- **Zonas de entrega** (dentro de Configurações): não funcionam sem backend real — o carrinho já lida bem com isso (cai pro campo de bairro manual).
-- **Rastreio de pedido (`/pedido/:id`)**: só funciona com backend real, não é alcançável nesta demo.
+### Scripts de banco
 
-## Reaproveitando para um cliente de verdade
+| Comando | O que faz |
+|---|---|
+| `npm run db:migrate` | aplica o que falta de `db/migrations/*.sql` (controle em `schema_migrations`) |
+| `npm run db:seed` | cadastra o cardápio de `src/data/cardapio.ts`, as configurações e o admin. Não sobrescreve o que já existe |
+| `npm run admin:password -- <usuario> <senha> [admin\|gestor]` | cria o usuário ou redefine a senha dele (e encerra as sessões abertas) |
 
-Esse é o mesmo esqueleto do `massas-italianas-express`/`marmitas-fit-express`. Pra virar o site de um cliente real:
+Todos usam o `.env.local` por padrão. Para a produção, prefixe com `ENV_FILE=.env.vercel-production.local`.
 
-1. Trocar cardápio em `src/data/cardapio.ts` pelos pratos/preços reais (ou cadastrar direto pelo admin depois de configurar o backend).
-2. Trocar nome/textos ("Restaurante Modelo") em `Header.tsx`, `Footer.tsx`, `HeroSection.tsx`, `AboutSection.tsx`, `CartModal.tsx`, `Auth.tsx`, `PedidoTracking.tsx`, `index.html`.
-3. Trocar `/placeholder.svg` e as fotos em `public/menu/` e `public/hero/` pela logo/fotos reais do cliente.
-4. Ajustar `DEFAULT_SITE_SETTINGS` (WhatsApp, horário de funcionamento) em `src/lib/site-settings.ts`.
-5. Se o pacote incluir backend (Pacote 2), apontar `public/runtime-config.js` (ou `.env.local`) pro n8n do cliente e seguir o contrato em `src/features/integrations/n8n-contracts.ts`. Isso desliga o modo demo automaticamente (`hasN8NBaseUrl()` passa a ser `true`) e todo o admin volta a falar com o backend real — inclusive login, então troque a senha demo por credenciais de verdade antes de publicar.
+## Levando a API para a VPS (quando quiser)
+
+O front não muda. Na VPS:
+1. Rode `npm ci && npm run start:api`, com pm2 ou systemd, usando as mesmas variáveis de ambiente (`PORT`, padrão 8787).
+2. Exponha pelo Nginx em `https://api.seudominio/api`.
+3. No build do site, use `VITE_API_BASE_URL=https://api.seudominio/api`.
+
+O site estático pode continuar na Vercel ou ir para a VPS. Se o site e a API ficarem em domínios diferentes, habilite CORS em `server/app.ts` (`hono/cors`).
+
+## Pendências com o cliente
+
+Confirmar antes de publicar. Os itens estão marcados com **"(a confirmar)"** no próprio cardápio, visíveis no site e no admin.
+
+1. **Nomes cortados no PDF**:
+   - Promoção do dia: "2 Fatias torta pro...", "Promoção 2 fatias ...", "Salgado promoção...".
+   - Salgados: "Misto quente com ...".
+   - Cafés: "CAPPUCCINO ALP..." (Alpino?), "KITKAT", "MOK. DOIS FRADES", "DOIS FRADES".
+   - Refrigerantes: os dois tamanhos de Coca-Cola Original (R$ 10 e R$ 12) e a 2ª opção de Guaraná Antarctica.
+   - Bolos caseiros: "Bolo caseiro com ...".
+   - Biscoitos: "LECINHO DE GOI...", "ROSQUINHA DE C...".
+   - Picolés: os 15 sabores, dos quais só se lê a inicial.
+   - Mini sorvete: os 5 sabores.
+   - Doces: "Copo pequeno mo...", "Morango cravejad..." (R$ 25).
+   - Sobremesas: as duas opções de "Bolo no pote Tam...".
+   - Licores: "Licor artesanal ma...", "me...", "ta...".
+   - Bomboniere: "Salgadinhos s...".
+2. **Sem preço no PDF**:
+   - "Cenoura" (bolos caseiros) está cadastrado como indisponível.
+   - "POLPA FRUTAS 1KG" aparece no PDF sem preço, acima de "POLPA DE MANGA 1KG" (R$ 15). O site tem só "Polpa de fruta 1 kg" com a opção Manga.
+3. **Horário de funcionamento**: o padrão é 07h–19h (placeholder, editável no admin).
+4. **Endereço**: o rodapé mostra "Endereço a confirmar" (`BRAND.address` em `src/lib/brand.ts`).
+5. **Logo original** em alta resolução ou vetor, sem o anel do Instagram.
+6. **Fotos reais** dos produtos e do ambiente, para substituir o fallback e a foto do hero.
+7. **Promoção do dia** no hero: o texto "2 fatias de torta por R$ 30" está fixo em `HeroSection.tsx`.

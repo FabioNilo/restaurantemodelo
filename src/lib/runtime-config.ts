@@ -1,6 +1,11 @@
 type MarmitasRuntimeConfig = Partial<Record<string, string>>;
 
 const BUILD_CONFIG: MarmitasRuntimeConfig = {
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_FEATURE_PEDIDOS: import.meta.env.VITE_FEATURE_PEDIDOS,
+  VITE_FEATURE_CAIXA: import.meta.env.VITE_FEATURE_CAIXA,
+  VITE_FEATURE_ENTREGAS: import.meta.env.VITE_FEATURE_ENTREGAS,
+  VITE_FEATURE_GESTORES: import.meta.env.VITE_FEATURE_GESTORES,
   VITE_CHIPTRACK_WEBHOOK_BASE_URL: import.meta.env.VITE_CHIPTRACK_WEBHOOK_BASE_URL,
   CHIPTRACK_WEBHOOK_BASE_URL: import.meta.env.CHIPTRACK_WEBHOOK_BASE_URL,
   VITE_N8N_BASE_URL: import.meta.env.VITE_N8N_BASE_URL,

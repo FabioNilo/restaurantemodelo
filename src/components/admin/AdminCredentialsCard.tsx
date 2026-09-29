@@ -42,10 +42,10 @@ export function AdminCredentialsCard() {
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       toast({
         title: 'Senha muito curta',
-        description: 'A nova senha deve ter no mínimo 6 caracteres.',
+        description: 'A nova senha deve ter no mínimo 8 caracteres.',
         variant: 'destructive',
       });
       return;
@@ -91,7 +91,7 @@ export function AdminCredentialsCard() {
     <Card className="border-primary/15 bg-card/80">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
-          <ShieldCheck className="h-5 w-5 text-primary" />
+          <ShieldCheck className="h-5 w-5 text-gold-ink" />
           Credenciais de acesso
         </CardTitle>
         <CardDescription>
@@ -156,7 +156,7 @@ export function AdminCredentialsCard() {
 
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3 text-sm text-muted-foreground">
-            <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink" />
             <p>Ao salvar, suas alterações serão aplicadas e salvas no banco de dados.</p>
           </div>
           <Button onClick={handleSave} disabled={saving} className="gap-2">

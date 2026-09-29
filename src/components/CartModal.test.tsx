@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CartModal } from './CartModal';
 import { ProductCard } from './ProductCard';
 import { CartProvider } from '@/context/CartContext';
-import { produtosCardapio } from '@/data/cardapio';
+import { produtoComTamanhos } from '@/test/fixtures';
 import { createPedidoN8n, fetchDeliveryFeeN8n, fetchDeliveryZonesN8n } from '@/features/integrations/marmitas-api';
 
 vi.mock('@/features/integrations/marmitas-api', async () => {
@@ -37,7 +37,7 @@ vi.mock('@/features/integrations/marmitas-api', async () => {
 });
 
 function CheckoutHarness() {
-  const produto = produtosCardapio.find((item) => item.id === 'file-ao-molho-madeira')!;
+  const produto = produtoComTamanhos;
 
   return (
     <CartProvider>

@@ -1,6 +1,9 @@
 import { getConfigValue } from '@/lib/runtime-config';
 
+// VITE_API_BASE_URL=/api aponta para a API própria (server/, Vercel Function
+// ou VPS). As chaves antigas do n8n continuam aceitas como alternativa.
 const rawBaseUrl = getConfigValue(
+  'VITE_API_BASE_URL',
   'VITE_CHIPTRACK_WEBHOOK_BASE_URL',
   'CHIPTRACK_WEBHOOK_BASE_URL',
   'VITE_N8N_BASE_URL'

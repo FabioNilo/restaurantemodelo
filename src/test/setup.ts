@@ -1,30 +1,33 @@
 import '@testing-library/jest-dom/vitest';
 
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    dispatchEvent: () => false,
-  }),
-});
+// Os testes da API (server/) rodam em ambiente Node, sem window.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
 
-Object.defineProperties(HTMLElement.prototype, {
-  hasPointerCapture: {
-    value: () => false,
-  },
-  setPointerCapture: {
-    value: () => undefined,
-  },
-  releasePointerCapture: {
-    value: () => undefined,
-  },
-  scrollIntoView: {
-    value: () => undefined,
-  },
-});
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: {
+      value: () => false,
+    },
+    setPointerCapture: {
+      value: () => undefined,
+    },
+    releasePointerCapture: {
+      value: () => undefined,
+    },
+    scrollIntoView: {
+      value: () => undefined,
+    },
+  });
+}

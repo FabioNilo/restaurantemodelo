@@ -251,14 +251,14 @@ export function CaixaTab() {
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
-              <ArrowUpCircle className="h-4 w-4 text-primary" />
+              <ArrowUpCircle className="h-4 w-4 text-gold-ink" />
               Total de Entradas
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <span className="text-3xl font-bold text-primary">
+              <TrendingUp className="h-6 w-6 text-gold-ink" />
+              <span className="text-3xl font-bold text-gold-ink">
                 R$ {resumo.totalEntradas.toFixed(2)}
               </span>
             </div>
@@ -292,7 +292,7 @@ export function CaixaTab() {
           <CardContent>
             <div className="flex items-center gap-2">
               <Wallet className="h-6 w-6 text-secondary" />
-              <span className={cn("text-3xl font-bold", resumo.saldo >= 0 ? "text-primary" : "text-destructive")}>
+              <span className={cn("text-3xl font-bold", resumo.saldo >= 0 ? "text-gold-ink" : "text-destructive")}>
                 R$ {resumo.saldo.toFixed(2)}
               </span>
             </div>
@@ -376,7 +376,7 @@ export function CaixaTab() {
         <CardContent>
           {listaQuery.isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
             </div>
           ) : listaQuery.error ? (
             <div className="text-center py-12 text-destructive">
@@ -432,7 +432,7 @@ export function CaixaTab() {
                         <TableCell
                           className={cn(
                             "text-right font-bold",
-                            mov.tipo === 'entrada' ? 'text-primary' : 'text-destructive'
+                            mov.tipo === 'entrada' ? 'text-gold-ink' : 'text-destructive'
                           )}
                         >
                           {mov.tipo === 'entrada' ? '+' : '-'} R$ {Number(mov.valor).toFixed(2)}
