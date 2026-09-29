@@ -69,9 +69,7 @@ export function HeroSection({ deliveryNotice }: HeroSectionProps) {
               Café fresquinho, bolos caseiros e salgados{' '}
               <span className="text-gradient italic">do nosso jeito</span>
             </h1>
-            <p className="max-w-xl text-base leading-relaxed text-white/80 sm:text-lg animate-fade-in" style={{ animationDelay: '0.2s' }}>
-              Peça direto pelo WhatsApp, sem fila e sem comissão de aplicativo.
-            </p>
+          
           </div>
 
           <div className="flex flex-wrap gap-2.5 animate-fade-in sm:gap-3" style={{ animationDelay: '0.3s' }}>
