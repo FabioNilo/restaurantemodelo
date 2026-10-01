@@ -33,6 +33,15 @@ import {
   type SiteStatusResponse,
   marmitasWebhookPaths,
 } from './n8n-contracts';
+import type {
+  MesaAdmin,
+  MesaPublica,
+  PedidoMesaRequest,
+  PedidoMesaResponse,
+  StatusPedidoMesa,
+} from './mesas-contracts';
+import type { Desempenho, MesaDetalhe, Metricas, MovimentoCaixa, PedidoDelivery, StatusDelivery } from './painel-contracts';
+import type { FormaPagamento } from '@/lib/pagamentos';
 import type { CaixaMovimentacao, CaixaResumo, CaixaSerieDiaria } from '@/hooks/useCaixaMovimentacoes';
 import type { Pedido, PedidoListItem, PedidosResumo } from '@/hooks/usePedidos';
 import type { ConfiguracoesSite, ConfiguracoesSiteUpdate } from '@/lib/site-settings';
@@ -520,4 +529,79 @@ export function deleteCaixaMovimentacaoN8n(id: string) {
 
 export function restorePedidoEstoqueN8n(id: string) {
   return requestMarmitasAdmin<{ id: string }>('estoque.restorePedido', { id });
+}
+
+// --- Pedidos pela mesa (QR code) ---
+
+export function fetchMesaPublica(token: string) {
+  return requestMarmitas<MesaPublica>(`/mesas/${encodeURIComponent(token)}`, { method: 'GET' });
+}
+
+export function createPedidoMesa(token: string, payload: PedidoMesaRequest) {
+  return requestMarmitas<PedidoMesaResponse>(`/mesas/${encodeURIComponent(token)}/pedidos`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchMesasAdmin() {
+  return requestMarmitasAdmin<MesaAdmin[]>('mesas.list');
+}
+
+export function createMesaAdmin(data: { numero: number; nome?: string }) {
+  return requestMarmitasAdmin<{ id: number }>('mesas.create', { data });
+}
+
+export function updateMesaAdmin(id: number, data: { nome?: string; ativa?: boolean }) {
+  return requestMarmitasAdmin<{ id: number }>('mesas.update', { id, data });
+}
+
+export function deleteMesaAdmin(id: number) {
+  return requestMarmitasAdmin<{ id: number }>('mesas.delete', { id });
+}
+
+export function regenerarTokenMesaAdmin(id: number) {
+  return requestMarmitasAdmin<{ id: number }>('mesas.regenerarToken', { id });
+}
+
+export function updateStatusPedidoMesa(id: string, status: StatusPedidoMesa) {
+  return requestMarmitasAdmin<{ id: string; status: StatusPedidoMesa }>('pedidosMesa.status', { id, status });
+}
+
+export function cancelarContaMesa(id: string) {
+  return requestMarmitasAdmin<{ id: string }>('contas.cancelar', { id });
+}
+
+// --- Painel: comanda, delivery, caixa e relatórios ---
+
+export function fetchMesaDetalhe(id: number) {
+  return requestMarmitasAdmin<MesaDetalhe>('mesas.detalhe', { id });
+}
+
+export function fecharContaMesaPagamentos(id: string, pagamentos: Array<{ metodo: FormaPagamento; valor: number }>) {
+  return requestMarmitasAdmin<{ id: string; valor_total: number }>('contas.fechar', { id, pagamentos });
+}
+
+export function fetchDeliveryAdmin() {
+  return requestMarmitasAdmin<PedidoDelivery[]>('delivery.list');
+}
+
+export function updateStatusDelivery(id: string, status: Exclude<StatusDelivery, 'entregue'>) {
+  return requestMarmitasAdmin<{ id: string }>('delivery.status', { id, status });
+}
+
+export function entregarDelivery(id: string, metodo: FormaPagamento, taxa_entrega: number | null) {
+  return requestMarmitasAdmin<{ id: string; valor_total: number }>('delivery.entregar', { id, metodo, taxa_entrega });
+}
+
+export function fetchMovimentosCaixa(de: string, ate: string) {
+  return requestMarmitasAdmin<MovimentoCaixa[]>('caixa.movimentos', { de, ate });
+}
+
+export function fetchMetricas(dias: 1 | 7 | 30) {
+  return requestMarmitasAdmin<Metricas>('metricas', { dias });
+}
+
+export function fetchDesempenho(dias: 7 | 30 | 90) {
+  return requestMarmitasAdmin<Desempenho>('desempenho', { dias });
 }

@@ -98,9 +98,9 @@ describe('rotas públicas', () => {
     expect(queryMock.mock.calls.some(([sql]) => String(sql).includes('where disponivel and estoque > 0'))).toBe(true);
   });
 
-  it('responde 501 ao registro de pedidos, para o carrinho seguir pelo WhatsApp', async () => {
+  it('recusa pedido de delivery incompleto (o carrinho segue pelo WhatsApp mesmo assim)', async () => {
     const response = await app.request('/api/massas/pedidos', { method: 'POST', body: '{}' });
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(400);
   });
 });
 

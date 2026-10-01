@@ -1,14 +1,15 @@
-import { ShoppingCart, User } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
-import { Link } from 'react-router-dom';
 import { BRAND } from '@/lib/brand';
 
 interface HeaderProps {
   onCartClick: () => void;
+  // Página da mesa (QR code): troca os links âncora pelo selo da mesa.
+  mesaLabel?: string;
 }
 
-export function Header({ onCartClick }: HeaderProps) {
+export function Header({ onCartClick, mesaLabel }: HeaderProps) {
   const { totalItems } = useCart();
   const menuLinks = [
     { href: '#inicio', label: 'Início' },
@@ -36,11 +37,11 @@ export function Header({ onCartClick }: HeaderProps) {
           </a>
 
           <div className="flex items-center gap-2 md:hidden">
-            <Button variant="ghost" asChild className="h-10 rounded-full border border-primary/45 bg-primary/10 px-3 text-xs font-bold uppercase tracking-wide text-primary hover:bg-primary hover:text-primary-foreground">
-              <Link to="/auth" aria-label="Área administrativa">
-                Admin
-              </Link>
-            </Button>
+            {mesaLabel && (
+              <span className="brand-caps rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-[0.62rem] text-primary">
+                {mesaLabel}
+              </span>
+            )}
             <Button variant="cart" size="icon" onClick={onCartClick} className="relative h-11 w-11 rounded-full shadow-soft" aria-label="Abrir carrinho">
               <ShoppingCart className="h-5 w-5" />
               {totalItems > 0 && (
@@ -52,25 +53,25 @@ export function Header({ onCartClick }: HeaderProps) {
           </div>
         </div>
 
-        <nav className="flex w-full items-center justify-between gap-1 overflow-x-auto md:justify-start pb-1 scrollbar-none md:w-auto md:gap-8 md:overflow-visible md:pb-0">
-          {menuLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="brand-caps shrink-0 rounded-full px-2.5 py-2 text-[0.68rem] !tracking-[0.16em] text-primary/90 md:!tracking-[0.3em] transition-colors hover:bg-primary/15 hover:text-brand-gold-soft md:px-0 md:py-0 md:text-xs md:hover:bg-transparent"
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
+        {mesaLabel ? (
+          <p className="brand-caps hidden rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-[0.7rem] text-primary md:block">
+            {mesaLabel}
+          </p>
+        ) : (
+          <nav className="flex w-full items-center justify-between gap-1 overflow-x-auto md:justify-start pb-1 scrollbar-none md:w-auto md:gap-8 md:overflow-visible md:pb-0">
+            {menuLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="brand-caps shrink-0 rounded-full px-2.5 py-2 text-[0.68rem] !tracking-[0.16em] text-primary/90 md:!tracking-[0.3em] transition-colors hover:bg-primary/15 hover:text-brand-gold-soft md:px-0 md:py-0 md:text-xs md:hover:bg-transparent"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        )}
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost" asChild className="h-10 rounded-full border border-primary/45 bg-primary/10 px-4 font-bold uppercase tracking-wide text-primary hover:bg-primary hover:text-primary-foreground">
-            <Link to="/auth">
-              <User className="mr-2 h-4 w-4" />
-              Admin
-            </Link>
-          </Button>
           <Button variant="cart" size="icon" onClick={onCartClick} className="relative shadow-soft" aria-label="Abrir carrinho">
             <ShoppingCart className="w-5 h-5" />
             {totalItems > 0 && (

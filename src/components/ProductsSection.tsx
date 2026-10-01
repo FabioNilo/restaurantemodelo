@@ -13,7 +13,13 @@ interface ProductGroup {
   items: MarmitaListItem[];
 }
 
-export function ProductsSection() {
+interface ProductsSectionProps {
+  // Página da mesa (QR code): sem a introdução (o banner da mesa já explica) e
+  // com a barra fixa grudando mais acima, já que o cabeçalho tem uma linha só.
+  modoMesa?: boolean;
+}
+
+export function ProductsSection({ modoMesa = false }: ProductsSectionProps = {}) {
   const { marmitas, categorias, loading, error } = useMarmitas();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,27 +72,34 @@ export function ProductsSection() {
   let cardIndex = 0;
 
   return (
-    <section id="cardapio" className="relative scroll-mt-28 py-20 md:scroll-mt-16 md:py-24">
+    <section id="cardapio" className={cn('relative scroll-mt-28 md:scroll-mt-16', modoMesa ? 'py-6 md:py-10' : 'py-20 md:py-24')}>
       <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--background)),hsl(40_32%_91%))]" />
       <div className="container relative mx-auto px-4">
-        <div className="mb-10 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
-          <div>
-            <span className="brand-caps inline-block rounded-full bg-secondary px-4 py-2 text-[0.65rem] text-primary shadow-soft">
-              Cardápio da casa
-            </span>
-            <h2 className="mt-5 font-display text-5xl font-bold leading-tight text-secondary md:text-6xl">
-              Escolha seu <span className="italic text-gold-ink">pedido</span>
-            </h2>
-            <span className="divider-gold mt-4" aria-hidden="true" />
+        {!modoMesa && (
+          <div className="mb-10 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
+            <div>
+              <span className="brand-caps inline-block rounded-full bg-secondary px-4 py-2 text-[0.65rem] text-primary shadow-soft">
+                Cardápio da casa
+              </span>
+              <h2 className="mt-5 font-display text-5xl font-bold leading-tight text-secondary md:text-6xl">
+                Escolha seu <span className="italic text-gold-ink">pedido</span>
+              </h2>
+              <span className="divider-gold mt-4" aria-hidden="true" />
+            </div>
+            <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground lg:justify-self-end">
+              Cafés, bolos caseiros, tortas, salgados, picolés, polpas e muito mais — tudo para pedir direto pelo WhatsApp.
+            </p>
           </div>
-          <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground lg:justify-self-end">
-            Cafés, bolos caseiros, tortas, salgados, picolés, polpas e muito mais — tudo para pedir direto pelo WhatsApp.
-          </p>
-        </div>
+        )}
 
         <div ref={listTopRef} className="scroll-mt-40 md:scroll-mt-36" />
 
-        <div className="sticky top-[6.4rem] z-30 -mx-4 mb-8 border-y border-primary/20 bg-background/95 px-4 py-3 shadow-soft backdrop-blur md:top-16 md:mx-0 md:rounded-2xl md:border">
+        <div
+          className={cn(
+            'sticky z-30 -mx-4 mb-8 border-y border-primary/20 bg-background/95 px-4 py-3 shadow-soft backdrop-blur md:top-16 md:mx-0 md:rounded-2xl md:border',
+            modoMesa ? 'top-[4.25rem]' : 'top-[6.4rem]'
+          )}
+        >
           <div className="relative mb-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input

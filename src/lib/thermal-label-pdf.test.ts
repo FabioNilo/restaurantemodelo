@@ -56,7 +56,8 @@ describe('downloadPedidoThermalLabelPdf', () => {
     const pdfBlob = generatedBlob instanceof Blob ? generatedBlob : null;
     expect(pdfBlob).not.toBeNull();
     const pdfText = await pdfBlob!.text();
-    expect(pdfText).toContain('PASTA BRASILIANA');
+    expect(pdfText).toContain('NOSSO BISTRO CAFE');
+    expect(pdfText).not.toContain('PASTA BRASILIANA');
     expect(pdfText).toContain('COMPROVANTE DO PEDIDO');
     expect(pdfText).toContain('/BaseFont /Courier-BoldOblique');
     expect(pdfText).not.toContain('Rua Quirino Cardoso, 86 - Conquista');

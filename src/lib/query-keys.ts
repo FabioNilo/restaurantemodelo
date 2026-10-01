@@ -2,6 +2,7 @@ export const queryKeys = {
   public: {
     catalogo: ['public', 'catalogo'] as const,
     siteStatus: ['public', 'site-status'] as const,
+    mesa: (token: string) => ['public', 'mesa', token] as const,
   },
   admin: {
     categorias: ['admin', 'categorias'] as const,
@@ -22,5 +23,7 @@ export const queryKeys = {
     configuracoesSite: ['admin', 'configuracoes-site'] as const,
     taxasEntrega: ['admin', 'taxas-entrega'] as const,
     datasTaxaEspecial: ['admin', 'datas-taxa-especial'] as const,
+    mesas: ['admin', 'mesas'] as const,
+    painelMesas: ['admin', 'mesas', 'painel'] as const,
   },
 };

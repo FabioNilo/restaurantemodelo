@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, Loader2, MapPin, MessageCircle, Minus, Plus, QrCode, Trash2, Truck, X } from 'lucide-react';
+import { CreditCard, Landmark, Loader2, MapPin, MessageCircle, QrCode, Truck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ProductImageFallback } from '@/components/ProductImageFallback';
+import { CartItemsList } from '@/components/CartItemsList';
 import { useCart } from '@/context/CartContext';
 import { createPedidoN8n, fetchDeliveryFeeN8n, fetchDeliveryZonesN8n } from '@/features/integrations/marmitas-api';
 import type { DeliveryZone } from '@/features/integrations/n8n-contracts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { toast } from '@/hooks/use-toast';
 import { BRAND } from '@/lib/brand';
-import { getCatalogImageSrc } from '@/lib/catalog-image';
 import { buildWhatsAppUrl, DEFAULT_SITE_SETTINGS } from '@/lib/site-settings';
 import type { CustomerData } from '@/types/product';
 import { calcularTaxaEntrega } from '@/utils/deliveryFee';
@@ -23,10 +22,18 @@ interface CartModalProps {
   whatsappNumber?: string;
 }
 
+// Formas aceitas em todo o site (src/lib/pagamentos.ts): Pix, Débito e Crédito.
 const PAYMENT_LABELS = {
   pix: 'Pix',
+  cartao_debito: 'Cartão de débito',
   cartao_credito: 'Cartão de crédito',
 } as const;
+
+const PAYMENT_OPTIONS = [
+  { value: 'pix', label: 'Pix', icon: QrCode },
+  { value: 'cartao_debito', label: 'Débito', icon: Landmark },
+  { value: 'cartao_credito', label: 'Crédito', icon: CreditCard },
+] as const;
 
 interface DeliveryQuote {
   bairro: string;
@@ -161,7 +168,7 @@ export function CartModal({
   onClose,
   whatsappNumber = DEFAULT_SITE_SETTINGS.whatsapp_numero,
 }: CartModalProps) {
-  const { items, updateQuantity, removeFromCart, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart } = useCart();
   const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote>({
     bairro: 'Entrega',
     taxa: null,
@@ -508,68 +515,7 @@ export function CartModal({
         <div className="max-h-[calc(92vh-210px)] overflow-y-auto p-5">
           {step === 'cart' ? (
             <>
-              {items.length === 0 ? (
-                <div className="py-14 text-center">
-                  <p className="font-display text-xl font-bold">Seu carrinho está vazio</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Escolha um item do cardápio para continuar.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {items.map((item) => {
-                    const imageSrc = getCatalogImageSrc(item.imagem_url);
-
-                    return (
-                      <div key={item.id} className="grid grid-cols-[5.5rem_1fr] gap-4 rounded-2xl border border-border bg-card p-3 shadow-soft">
-                        {imageSrc ? (
-                          <img src={imageSrc} alt={item.nome} className="h-24 w-24 rounded-xl object-cover" />
-                        ) : (
-                          <ProductImageFallback name={item.nome} compact className="h-24 w-24 shrink-0 rounded-xl" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <h4 className="font-display text-base font-black leading-tight">{item.nome}</h4>
-                              {item.tamanho_nome && (
-                                <p className="mt-1 text-xs font-bold text-secondary">
-                                  {item.tamanho_serve ? `${item.tamanho_nome} · ${item.tamanho_serve}` : item.tamanho_nome}
-                                </p>
-                              )}
-                            </div>
-                            <p className="shrink-0 font-display text-lg font-black text-gold-ink">
-                              {formatCurrency(item.preco)}
-                            </p>
-                          </div>
-
-                          <div className="mt-4 flex items-center gap-2">
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantidade - 1)}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-muted transition-colors hover:bg-accent"
-                              aria-label={`Diminuir ${item.nome}`}
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <span className="w-8 text-center font-black">{item.quantidade}</span>
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantidade + 1)}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-muted transition-colors hover:bg-accent"
-                              aria-label={`Aumentar ${item.nome}`}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => removeFromCart(item.id)}
-                              className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
-                              aria-label={`Remover ${item.nome}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <CartItemsList />
             </>
           ) : (
             <div className="grid gap-5">
@@ -646,23 +592,19 @@ export function CartModal({
 
               <div className="space-y-3">
                 <Label>Forma de pagamento *</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setCustomerData((prev) => ({ ...prev, paymentMethod: 'pix' }))}
-                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${customerData.paymentMethod === 'pix' ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
-                  >
-                    <QrCode className="h-5 w-5 text-gold-ink" />
-                    <span className="font-bold">Pix</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerData((prev) => ({ ...prev, paymentMethod: 'cartao_credito' }))}
-                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${customerData.paymentMethod === 'cartao_credito' ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
-                  >
-                    <CreditCard className="h-5 w-5 text-gold-ink" />
-                    <span className="font-bold">Cartão de crédito</span>
-                  </button>
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={customerData.paymentMethod === value}
+                      onClick={() => setCustomerData((prev) => ({ ...prev, paymentMethod: value }))}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center transition-all sm:flex-row sm:gap-3 sm:p-4 sm:text-left ${customerData.paymentMethod === value ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
+                    >
+                      <Icon className="h-5 w-5 text-gold-ink" />
+                      <span className="font-bold">{label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

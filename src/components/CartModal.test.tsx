@@ -126,7 +126,7 @@ describe('CartModal', () => {
     });
     expect(screen.getByText('Entrega: R$ 8,00')).toBeInTheDocument();
     expect(screen.getByText('R$ 86,00')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Cartão de crédito/i }));
+    await user.click(screen.getByRole('button', { name: /^Crédito$/i }));
     await user.click(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i }));
 
     await waitFor(() => {

@@ -6,5 +6,5 @@ export function parseDecimal(raw: string) {
 }
 
 export function formatDecimal(value: number) {
-  return value ? String(value).replace('.', ',') : '';
+  return value ? value.toFixed(2).replace('.', ',') : '';
 }

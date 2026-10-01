@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { ApiError, fail } from './http.js';
 import { adminRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
+import { mesaPublicaRoutes } from './routes/mesa-publica.js';
 import { publicRoutes } from './routes/public.js';
 
 // API do Nosso Bistrô. Não depende da Vercel: api/index.ts adapta para as
@@ -16,6 +17,7 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.route('/massas', publicRoutes);
 app.route('/massas/auth', authRoutes);
 app.route('/massas/admin', adminRoutes);
+app.route('/mesas', mesaPublicaRoutes);
 
 app.notFound((c) => fail(c, 404, 'Rota não encontrada.'));
 

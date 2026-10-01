@@ -1,3 +1,5 @@
+import { BRAND } from '@/lib/brand';
+
 interface ThermalLabelItem {
   quantidade?: number;
   nome?: string;
@@ -90,6 +92,7 @@ function getShortPedidoId(id: string) {
 function getPaymentLabel(value?: string | null) {
   const normalized = compactText(value, '').toLowerCase();
   if (normalized === 'cartao_credito' || normalized === 'cartao') return 'CARTAO DE CREDITO';
+  if (normalized === 'cartao_debito') return 'CARTAO DE DEBITO';
   if (normalized === 'pix') return 'PIX';
   return compactText(value, '-').toUpperCase();
 }
@@ -191,7 +194,7 @@ function buildReceiptLines(pedido: ThermalLabelPedido, items: ThermalLabelItem[]
   ].filter(Boolean).join(' - ');
 
   return [
-    { text: 'PASTA BRASILIANA', font: 'title', align: 'center' },
+    { text: BRAND.name.toUpperCase(), font: 'title', align: 'center' },
     { text: 'COMPROVANTE DO PEDIDO', font: 'bold', align: 'center' },
     { text: DIVIDER, align: 'center' },
     { text: `DATA: ${compactText(`${createdAt} ${createdTime}`.trim())}` },
@@ -300,15 +303,69 @@ function buildPdf(contentStream: string, pageHeight: number) {
   return new Blob([pdf], { type: 'application/pdf' });
 }
 
-export function downloadPedidoThermalLabelPdf(pedido: ThermalLabelPedido, items: ThermalLabelItem[]) {
-  const layout = prepareLayout(buildReceiptLines(pedido, items));
+function downloadReceipt(lines: ReceiptLine[], fileName: string) {
+  const layout = prepareLayout(lines);
   const blob = buildPdf(buildContentStream(layout), layout.pageHeight);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `impressao-pedido-${getShortPedidoId(pedido.id)}.pdf`;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+export function downloadPedidoThermalLabelPdf(pedido: ThermalLabelPedido, items: ThermalLabelItem[]) {
+  downloadReceipt(buildReceiptLines(pedido, items), `impressao-pedido-${getShortPedidoId(pedido.id)}.pdf`);
+}
+
+// --- Pedido da mesa (QR code): sem cliente/entrega, com a mesa em destaque ---
+
+interface ThermalMesaPedido {
+  numero: number;
+  nome_cliente: string | null;
+  observacoes: string | null;
+  valor_total: number;
+  created_at: string;
+  itens: ThermalLabelItem[];
+}
+
+export function buildMesaReceiptLines(pedido: ThermalMesaPedido, mesaNome: string): ReceiptLine[] {
+  const createdAt = new Date(pedido.created_at);
+  const data = createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const hora = createdAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const itemLines = pedido.itens.flatMap((item, index) => {
+    const total = getItemTotal(item);
+    return [
+      index > 0 ? { text: '' } : null,
+      { text: `${item.quantidade ?? 1}x ${compactText(item.nome, 'ITEM').toUpperCase()}`, font: 'itemName' },
+      item.tamanho_nome ? { text: `OPCAO: ${compactText(item.tamanho_nome).toUpperCase()}` } : null,
+      item.tamanho_serve ? { text: `${getVariationDetailLabel(item.tamanho_serve)}: ${compactText(item.tamanho_serve).toUpperCase()}` } : null,
+      total > 0 ? { text: `VALOR: ${formatCurrency(total)}` } : null,
+    ].filter(Boolean) as ReceiptLine[];
+  });
+
+  return [
+    { text: BRAND.name.toUpperCase(), font: 'title', align: 'center' },
+    { text: compactText(mesaNome).toUpperCase(), font: 'title', align: 'center' },
+    { text: `PEDIDO N ${pedido.numero}`, font: 'bold', align: 'center' },
+    { text: DIVIDER, align: 'center' },
+    { text: `DATA: ${data} ${hora}` },
+    pedido.nome_cliente ? { text: `CLIENTE: ${compactText(pedido.nome_cliente).toUpperCase()}` } : null,
+    { text: DIVIDER, align: 'center' },
+    ...itemLines,
+    { text: DIVIDER, align: 'center' },
+    { text: `TOTAL: ${formatCurrency(Number(pedido.valor_total) || 0)}`, font: 'bold' },
+    pedido.observacoes ? { text: '' } : null,
+    pedido.observacoes ? { text: 'OBS:', font: 'bold' } : null,
+    pedido.observacoes ? { text: compactText(pedido.observacoes).toUpperCase() } : null,
+    { text: '' },
+    { text: 'PAGAMENTO NO CAIXA', align: 'center' },
+  ].filter(Boolean) as ReceiptLine[];
+}
+
+export function downloadMesaPedidoThermalPdf(pedido: ThermalMesaPedido, mesaNome: string) {
+  downloadReceipt(buildMesaReceiptLines(pedido, mesaNome), `mesa-pedido-${pedido.numero}.pdf`);
 }

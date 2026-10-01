@@ -11,6 +11,10 @@ export interface UserPermissions {
   canManageCrm: boolean;
   canManageCashier: boolean;
   canManageUsers: boolean;
+  // Mesas/caixa (pedidos pelo QR code): o funcionário do caixa entra como gestor.
+  canManageTables: boolean;
+  // Métricas e Desempenho: só o dono (admin).
+  canViewReports: boolean;
 }
 
 export function getUserPermissions(user: Pick<AuthUser, 'role'> | null | undefined): UserPermissions {
@@ -27,5 +31,7 @@ export function getUserPermissions(user: Pick<AuthUser, 'role'> | null | undefin
     canManageCrm: isAdmin || isManager,
     canManageCashier: isAdmin,
     canManageUsers: isAdmin,
+    canManageTables: isAdmin || isManager,
+    canViewReports: isAdmin,
   };
 }

@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { isDeliveryClosed, SITE_CLOSED_MESSAGE } from '../../src/lib/site-settings.js';
 import { getConfiguracoes, getPublicCatalog } from '../catalog.js';
-import { fail, ok, publicCache } from '../http.js';
+import { criarPedidoDelivery, getStatusPedidoDelivery, pedidoDeliverySchema } from '../delivery.js';
+import { fail, noStore, ok, publicCache } from '../http.js';
 
 export const publicRoutes = new Hono();
 
@@ -42,4 +44,17 @@ publicRoutes.post('/delivery-fee', async (c) => {
   });
 });
 
-publicRoutes.post('/pedidos', (c) => fail(c, 501, 'Registro de pedidos ainda não habilitado. O pedido segue pelo WhatsApp.'));
+// Pedido de delivery: registrado aqui (preços do cardápio) e o site abre o WhatsApp em seguida.
+publicRoutes.post('/pedidos', async (c) => {
+  noStore(c);
+  return ok(c, await criarPedidoDelivery(pedidoDeliverySchema.parse(await c.req.json())), 201);
+});
+
+publicRoutes.get('/pedidos/status', async (c) => {
+  noStore(c);
+  const id = z.string().uuid().parse(c.req.query('id'));
+  const token = z.string().min(10).max(64).parse(c.req.query('token'));
+  return ok(c, await getStatusPedidoDelivery(id, token));
+});
+
+publicRoutes.post('/pedidos/cancelar', (c) => fail(c, 409, 'Para cancelar, fale conosco pelo WhatsApp.'));

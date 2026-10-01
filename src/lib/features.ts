@@ -5,7 +5,8 @@ import { getConfigValue } from '@/lib/runtime-config';
 // versão (server/) só Cardápio, Configurações e Login existem; os demais ficam
 // escondidos até serem habilitados com VITE_FEATURE_<MODULO>=true.
 // No modo demo (sem API) continuam visíveis, como antes.
-export type FeatureName = 'pedidos' | 'caixa' | 'entregas' | 'gestores';
+// Exceção: "mesas" (pedidos pelo QR code) só existe com a API, então segue o inverso.
+export type FeatureName = 'pedidos' | 'caixa' | 'entregas' | 'gestores' | 'mesas';
 
 export function isFeatureEnabled(feature: FeatureName) {
   const flag = getConfigValue(`VITE_FEATURE_${feature.toUpperCase()}`);
@@ -14,5 +15,5 @@ export function isFeatureEnabled(feature: FeatureName) {
     return flag === 'true';
   }
 
-  return !hasN8NBaseUrl();
+  return feature === 'mesas' ? hasN8NBaseUrl() : !hasN8NBaseUrl();
 }

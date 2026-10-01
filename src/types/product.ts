@@ -79,5 +79,5 @@ export interface CustomerData {
   neighborhood: string;
   complement?: string;
   observations?: string;
-  paymentMethod?: 'pix' | 'cartao_credito';
+  paymentMethod?: 'pix' | 'cartao_debito' | 'cartao_credito';
 }

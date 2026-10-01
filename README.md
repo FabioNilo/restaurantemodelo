@@ -56,10 +56,74 @@ navegador ──► fotos direto do bucket (leitura pública, sem passar pela Ve
   - O Object Storage do Neon não existe em São Paulo, por isso o projeto fica em us-east-1.
 - **Login**: senha com bcrypt na tabela `usuarios_admin` e token JWT (12 h) assinado com `SESSION_SECRET`. Trocar a senha encerra as sessões abertas em outros aparelhos.
 - **Cache**: o catálogo e o status do site ficam 30 s no cache da CDN da Vercel. Uma edição no admin leva **até ~1 min** para aparecer para todos os visitantes.
-- **Módulos desligados nesta versão**: Pedidos/CRM, Caixa, Taxas de entrega e Gestores.
-  - As abas e cards somem do admin (`src/lib/features.ts`).
-  - O carrinho segue como antes: bairro digitado, taxa "a combinar" e pedido enviado pelo WhatsApp.
-  - Para ligar um módulo quando o backend dele existir: `VITE_FEATURE_PEDIDOS=true` etc.
+- **Formas de pagamento em todo o site**: só **Pix, Débito e Crédito**, sem dinheiro e sem troco (`server/pagamentos.ts` e `src/lib/pagamentos.ts`).
+- **Ainda não existem**: taxas de entrega por bairro (no delivery a taxa é "a combinar" e a equipe informa ao dar baixa) e cadastro de gestores pela tela (use `npm run admin:password`).
+- **Acesso ao painel**: não há mais botão "Admin" no site. O painel fica em `/auth` (salve nos favoritos), e o `robots.txt` pede aos buscadores para não indexar `/auth`, `/admin` e `/api/`.
+
+## Painel administrativo (`/admin`)
+
+Mesma estrutura do painel do `plataforma-restaurantes`: **menu lateral** (no celular, uma barra rolável no topo) e uma página por seção, nas cores da marca. O código fica em `src/pages/admin/`, com o layout em `AdminLayout.tsx`.
+
+| Seção | O que faz | Admin | Gestor (caixa) |
+|---|---|---|---|
+| **Mesas** | mapa das mesas (livre ou ocupada, há quanto tempo, total e pedidos novos), QR e cadastro | ✔ | ✔ (sem cadastro e sem QR) |
+| **Mesas → comanda** | pedidos da mesa, Preparar → Entregue, Imprimir, Cancelar, **Lançar pedido** e **Fechar conta** | ✔ | ✔ |
+| **Delivery** | pedidos do site em andamento, avanço de status e **Marcar entregue** (forma de pagamento e taxa) | ✔ | ✔ |
+| **Caixa** | recebimentos por período, por forma e por canal, e **Exportar Excel** | ✔ | ✔ |
+| **Cardápio** | produtos, fotos, opções e categorias (o gestor só ajusta o estoque) | ✔ | estoque |
+| **Métricas** | vendas, pedidos, ticket médio, por canal, vendas por dia e mais vendidos (hoje, 7 ou 30 dias) | ✔ | — |
+| **Desempenho** | ranking por produto, em alta e em queda, e produtos parados (7, 30 ou 90 dias) | ✔ | — |
+| **Configurações** | WhatsApp, horário e credenciais | ✔ | — |
+
+Mesas e Delivery se atualizam sozinhos, a cada 10 e 15 segundos, só com a aba visível. Clique em **"Ativar som"** ao abrir: o navegador só toca o bipe de pedido novo depois de um clique. O título da aba também mostra "(2) Novos pedidos".
+
+Usuário do caixa (gestor):
+
+```sh
+ENV_FILE=.env.vercel-production.local npm run admin:password -- caixa <senha> gestor
+```
+
+### Pedidos pela mesa (QR code)
+
+O cliente escaneia o QR da mesa, vê o cardápio no celular e envia o pedido **direto para o caixa**, sem WhatsApp. Os pedidos se acumulam numa **conta aberta** da mesa.
+
+```
+QR da mesa ──► /mesa/<código> ──► POST /api/mesas/<código>/pedidos ──► Neon (pedidos_mesa)
+                                                                          ▲
+painel (/admin/mesas e /admin/mesas/:id) ── consulta a cada 10 s ─────────┘
+```
+
+- **Segurança**:
+  - Cada mesa tem um código aleatório no QR, e não um número.
+  - **O preço de cada item é recalculado no servidor** a partir do cardápio.
+  - Há limite de 6 pedidos por minuto por mesa.
+  - A mesa ignora o horário do delivery e só aceita pedido se estiver **ativa**.
+- **Lançar pedido**: na comanda, abre o cardápio da mesa numa aba nova, para o garçom pedir por um cliente sem celular.
+- **Fechar conta**:
+  - escolhe Pix, Débito ou Crédito, e o valor já vem preenchido com o total;
+  - **"Dividir pagamento"** reparte o total em até 3 formas, e "Completar R$ X" preenche o que falta;
+  - a soma tem de bater exatamente com o total, porque não há troco;
+  - não fecha com pedido em andamento;
+  - se entrar um pedido durante o fechamento, a API recusa e pede para conferir de novo.
+- **QR**: "Imprimir QR" gera uma folha A4 com 6 cartões; o botão QR do cartão imprime o de uma mesa só (`/admin/mesas/qr?id=`). "Gerar novo QR" invalida o cartão impresso.
+- O cliente acompanha os pedidos e o total parcial em "Minha conta". O pedido da mesa **não** baixa estoque.
+
+### Delivery registrado
+
+O pedido feito pelo site é **gravado no banco** (`pedidos_delivery`, com o preço recalculado no servidor) e o WhatsApp continua abrindo com a mensagem e o **link de acompanhamento** (`/pedido/:id?token=`).
+- No painel (**Delivery**), a equipe leva o pedido por Recebido → Em preparo → Saiu para entrega e clica em **Marcar entregue**.
+- Ao marcar como entregue, confirma a forma de pagamento (pré-marcada com a escolha do cliente) e a taxa de entrega. Nesse momento o valor **entra no caixa**.
+- O site aceita no máximo 5 pedidos por telefone a cada 10 minutos.
+
+### Caixa e Excel
+
+- O caixa sai da tabela `pagamentos`: **só entradas**, com cada pagamento de conta fechada e cada delivery entregue.
+- Período: **Hoje, Ontem, 7 dias, Este mês, Mês passado** ou datas **De/Até**, com no máximo 1 ano.
+- **Exportar Excel** baixa `fluxo-de-caixa_AAAA-MM-DD_a_AAAA-MM-DD.xlsx` com três abas:
+  - **Resumo**: total, por forma de pagamento e por canal;
+  - **Movimentações**: data, hora, canal, referência, cliente, forma e valor, com linha de total e filtro;
+  - **Por dia**: Pix, Débito, Crédito e total.
+- O `exceljs` só é baixado no clique, num arquivo separado, para não pesar o site.
 
 ## Variáveis de ambiente
 

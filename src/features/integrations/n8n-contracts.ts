@@ -91,7 +91,7 @@ export interface PedidoCreateRequest {
   complemento_cliente?: string | null;
   observacoes_cliente?: string | null;
   tipo_entrega?: 'delivery';
-  forma_pagamento?: 'pix' | 'cartao_credito';
+  forma_pagamento?: 'pix' | 'cartao_debito' | 'cartao_credito';
   tracking_base_url?: string;
 }
 

@@ -108,3 +108,17 @@ export async function requestJson<T>(
     );
   }
 }
+
+// requestJson lança o corpo da resposta como mensagem; quando é o envelope
+// { success: false, error } da API, devolve só o texto do erro.
+export function getApiErrorMessage(error: unknown, fallback = 'Não foi possível concluir agora. Tente de novo.') {
+  const message = error instanceof Error ? error.message : '';
+
+  try {
+    const parsed = JSON.parse(message) as { error?: unknown; message?: unknown };
+    const text = parsed.error ?? parsed.message;
+    return typeof text === 'string' && text.trim() ? text : fallback;
+  } catch {
+    return message && !message.startsWith('<') ? message : fallback;
+  }
+}

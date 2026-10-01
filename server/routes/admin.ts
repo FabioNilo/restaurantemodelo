@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { requireRole, type AdminRole, type AuthEnv } from '../auth.js';
+import { requireRole, type AdminRole, type AdminUser, type AuthEnv } from '../auth.js';
 import {
   categoriaCreateSchema,
   categoriaUpdateSchema,
@@ -21,6 +21,30 @@ import {
   updateProdutoEstoque,
 } from '../catalog.js';
 import { ApiError, noStore, ok } from '../http.js';
+import {
+  atualizarStatusDelivery,
+  entregarDelivery,
+  entregarSchema,
+  listarDelivery,
+  statusDeliverySchema,
+} from '../delivery.js';
+import { assertPeriodo, desempenhoSchema, getDesempenho, getMetricas, getMovimentosCaixa, metricasSchema } from '../relatorios.js';
+import {
+  atualizarMesa,
+  atualizarStatusPedido,
+  cancelarConta,
+  criarMesa,
+  excluirMesa,
+  fecharConta,
+  fecharContaSchema,
+  getDetalheMesa,
+  getPainel,
+  listarMesas,
+  mesaCreateSchema,
+  mesaUpdateSchema,
+  regenerarTokenMesa,
+  statusPedidoSchema,
+} from '../mesas.js';
 
 export const adminRoutes = new Hono<AuthEnv>();
 
@@ -30,6 +54,8 @@ adminRoutes.use('*', async (c, next) => {
 });
 
 const idSchema = z.object({ id: z.string().trim().min(1) });
+const mesaIdSchema = z.object({ id: z.coerce.number().int().positive() });
+const contaIdSchema = z.object({ id: z.string().uuid() });
 const pageSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
@@ -37,7 +63,7 @@ const pageSchema = z.object({
 
 interface ActionDefinition {
   roles: AdminRole[];
-  run: (payload: Record<string, unknown>) => Promise<unknown>;
+  run: (payload: Record<string, unknown>, user: AdminUser) => Promise<unknown>;
 }
 
 // Mesmas "actions" que o front envia em POST /massas/admin/api (marmitas-api.ts).
@@ -89,6 +115,73 @@ const actions: Record<string, ActionDefinition> = {
     roles: ['admin'],
     run: async (payload) => saveConfiguracoes(configuracoesSaveSchema.parse(payload.data)),
   },
+  // --- Mesas (QR code) e caixa ---
+  'mesas.list': {
+    roles: ['admin', 'gestor'],
+    run: async () => listarMesas(),
+  },
+  'mesas.create': {
+    roles: ['admin'],
+    run: async (payload) => criarMesa(mesaCreateSchema.parse(payload.data)),
+  },
+  'mesas.update': {
+    roles: ['admin'],
+    run: async (payload) => atualizarMesa(mesaIdSchema.parse(payload).id, mesaUpdateSchema.parse(payload.data)),
+  },
+  'mesas.delete': {
+    roles: ['admin'],
+    run: async (payload) => excluirMesa(mesaIdSchema.parse(payload).id),
+  },
+  'mesas.regenerarToken': {
+    roles: ['admin'],
+    run: async (payload) => regenerarTokenMesa(mesaIdSchema.parse(payload).id),
+  },
+  'mesas.detalhe': {
+    roles: ['admin', 'gestor'],
+    run: async (payload) => getDetalheMesa(mesaIdSchema.parse(payload).id),
+  },
+  'mesas.painel': {
+    roles: ['admin', 'gestor'],
+    run: async () => getPainel(),
+  },
+  'pedidosMesa.status': {
+    roles: ['admin', 'gestor'],
+    run: async (payload) => atualizarStatusPedido(statusPedidoSchema.parse(payload)),
+  },
+  'contas.fechar': {
+    roles: ['admin', 'gestor'],
+    run: async (payload, user) => fecharConta(fecharContaSchema.parse(payload), user.id),
+  },
+  'contas.cancelar': {
+    roles: ['admin'],
+    run: async (payload) => cancelarConta(contaIdSchema.parse(payload).id),
+  },
+  // --- Delivery ---
+  'delivery.list': {
+    roles: ['admin', 'gestor'],
+    run: async () => listarDelivery(),
+  },
+  'delivery.status': {
+    roles: ['admin', 'gestor'],
+    run: async (payload) => atualizarStatusDelivery(statusDeliverySchema.parse(payload)),
+  },
+  'delivery.entregar': {
+    roles: ['admin', 'gestor'],
+    run: async (payload, user) => entregarDelivery(entregarSchema.parse(payload), user.id),
+  },
+  // --- Caixa e relatórios ---
+  'caixa.movimentos': {
+    roles: ['admin', 'gestor'],
+    run: async (payload) => getMovimentosCaixa(assertPeriodo(payload)),
+  },
+  metricas: {
+    roles: ['admin'],
+    run: async (payload) => getMetricas(metricasSchema.parse(payload).dias),
+  },
+  desempenho: {
+    roles: ['admin'],
+    run: async (payload) => getDesempenho(desempenhoSchema.parse(payload).dias),
+  },
 };
 
 export function getAdminAction(name: string) {
@@ -106,11 +199,13 @@ adminRoutes.post('/api', requireRole('admin', 'gestor'), async (c) => {
     throw new ApiError(501, 'Módulo não habilitado nesta versão.');
   }
 
-  if (!action.roles.includes(c.get('user').role)) {
+  const user = c.get('user');
+
+  if (!action.roles.includes(user.role)) {
     throw new ApiError(403, 'Você não tem permissão para esta ação.');
   }
 
-  return ok(c, await action.run(payload));
+  return ok(c, await action.run(payload, user));
 });
 
 const estoqueSchema = z.object({

@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ShieldAlert } from 'lucide-react';
-import { AdminHeader } from '@/components/admin/AdminHeader';
 import { MarmitaForm } from '@/components/admin/MarmitaForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +10,7 @@ import { useMarmitaDetailQuery, useMarmitasAdmin } from '@/hooks/useMarmitasAdmi
 import type { Marmita } from '@/types/product';
 
 export default function MarmitaEditor() {
-  const { user, loading: authLoading, permissions } = useAuth();
+  const { loading: authLoading, permissions } = useAuth();
   const { marmitaId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -30,14 +29,9 @@ export default function MarmitaEditor() {
     [categorias]
   );
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [authLoading, navigate, user]);
-
+  // Dentro do AdminLayout (que já exige login); voltar = lista do cardápio.
   const handleBackToAdmin = () => {
-    navigate('/admin');
+    navigate('/admin/cardapio');
   };
 
   const handleSave = async (data: Omit<Marmita, 'id' | 'created_at' | 'updated_at'>) => {
@@ -46,7 +40,7 @@ export default function MarmitaEditor() {
 
       if (result.success) {
         toast({ title: 'Produto atualizado com sucesso!' });
-        navigate('/admin');
+        navigate('/admin/cardapio');
         return true;
       }
 
@@ -58,7 +52,7 @@ export default function MarmitaEditor() {
 
     if (result.success) {
       toast({ title: 'Produto criado com sucesso!' });
-      navigate('/admin');
+      navigate('/admin/cardapio');
       return true;
     }
 
@@ -68,17 +62,15 @@ export default function MarmitaEditor() {
 
   if (authLoading || (permissions.canManageFullMenu && loadingAdminData) || (isEditing && marmitaQuery.isLoading)) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
-        </div>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gold-ink" />
       </div>
     );
   }
 
   if (!permissions.canManageFullMenu) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-[50vh] items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <ShieldAlert className="mx-auto mb-4 h-16 w-16 text-destructive" />
@@ -88,8 +80,8 @@ export default function MarmitaEditor() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <Button variant="outline" onClick={() => navigate('/admin')}>
-              Voltar ao painel
+            <Button variant="outline" onClick={() => navigate('/admin/cardapio')}>
+              Voltar ao cardápio
             </Button>
           </CardContent>
         </Card>
@@ -99,8 +91,8 @@ export default function MarmitaEditor() {
 
   if (isEditing && marmitaQuery.error) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
+      <div>
+        <div>
           <Button variant="ghost" onClick={handleBackToAdmin} className="mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
@@ -113,24 +105,19 @@ export default function MarmitaEditor() {
               </CardDescription>
             </CardHeader>
           </Card>
-        </main>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdminHeader>
-        <span className="hidden text-sm text-muted-foreground sm:block">{user?.username ?? user?.email}</span>
-      </AdminHeader>
-
-      <main className="container mx-auto px-4 py-8">
+    <div>
         <div className="mb-6">
           <Button variant="ghost" onClick={handleBackToAdmin} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar ao cardápio
           </Button>
-          <h1 className="font-display text-3xl font-bold">
+          <h1 className="font-display text-4xl font-bold text-secondary">
             {isEditing ? 'Editar produto' : 'Novo produto'}
           </h1>
           <p className="mt-2 text-muted-foreground">
@@ -147,7 +134,6 @@ export default function MarmitaEditor() {
           onCancel={handleBackToAdmin}
           onSave={handleSave}
         />
-      </main>
     </div>
   );
 }
