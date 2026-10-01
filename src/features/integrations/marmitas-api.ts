@@ -40,7 +40,7 @@ import type {
   PedidoMesaResponse,
   StatusPedidoMesa,
 } from './mesas-contracts';
-import type { Desempenho, MesaDetalhe, Metricas, MovimentoCaixa, PedidoDelivery, StatusDelivery } from './painel-contracts';
+import type { BairroEntrega, Desempenho, MesaDetalhe, Metricas, MovimentoCaixa, PedidoDelivery, StatusDelivery } from './painel-contracts';
 import type { FormaPagamento } from '@/lib/pagamentos';
 import type { CaixaMovimentacao, CaixaResumo, CaixaSerieDiaria } from '@/hooks/useCaixaMovimentacoes';
 import type { Pedido, PedidoListItem, PedidosResumo } from '@/hooks/usePedidos';
@@ -592,6 +592,24 @@ export function updateStatusDelivery(id: string, status: Exclude<StatusDelivery,
 
 export function entregarDelivery(id: string, metodo: FormaPagamento, taxa_entrega: number | null) {
   return requestMarmitasAdmin<{ id: string; valor_total: number }>('delivery.entregar', { id, metodo, taxa_entrega });
+}
+
+// --- Bairros e taxas de entrega (Configurações) ---
+
+export function fetchBairrosAdmin() {
+  return requestMarmitasAdmin<BairroEntrega[]>('bairros.list');
+}
+
+export function createBairroAdmin(data: { nome: string; taxa: number }) {
+  return requestMarmitasAdmin<BairroEntrega>('bairros.create', data);
+}
+
+export function updateBairroAdmin(id: number, data: { nome?: string; taxa?: number; ativo?: boolean }) {
+  return requestMarmitasAdmin<BairroEntrega>('bairros.update', { id, ...data });
+}
+
+export function deleteBairroAdmin(id: number) {
+  return requestMarmitasAdmin<{ id: number }>('bairros.delete', { id });
 }
 
 export function fetchMovimentosCaixa(de: string, ate: string) {

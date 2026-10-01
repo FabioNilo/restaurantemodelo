@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { gerarExcelFluxoCaixa } from '@/lib/exportar-excel';
 import { dataBR, resumirCaixa } from '@/lib/fluxo-caixa';
-import { FORMA_PAGAMENTO_LABELS, FORMAS_PAGAMENTO, formatBRL, type FormaPagamento } from '@/lib/pagamentos';
+import { FORMA_PAGAMENTO_LABELS, FORMAS_PAGAMENTO, formatBRL, fromCents, toCents, type FormaPagamento } from '@/lib/pagamentos';
 import { ATALHOS_PERIODO, periodoDoAtalho, type AtalhoPeriodo } from '@/lib/periodos';
 import { cn } from '@/lib/utils';
 
@@ -123,6 +123,11 @@ export default function CaixaPage() {
           </p>
           <p className="mt-1 font-display text-4xl font-bold text-primary">{movimentos.isLoading ? '…' : formatBRL(resumo.total)}</p>
           <p className="text-xs text-secondary-foreground/60">{resumo.quantidade} recebimento(s)</p>
+          {resumo.taxaEntrega > 0 && (
+            <p className="mt-2 border-t border-secondary-foreground/15 pt-2 text-xs text-secondary-foreground/75">
+              Itens {formatBRL(resumo.itens)} · Taxas de entrega {formatBRL(resumo.taxaEntrega)}
+            </p>
+          )}
         </div>
         {FORMAS_PAGAMENTO.map((forma) => {
           const Icone = ICONES[forma];
@@ -149,6 +154,12 @@ export default function CaixaPage() {
                 </span>
                 <span className="font-sans text-base">{formatBRL(resumo.porCanal[canal])}</span>
               </h2>
+              {canal === 'delivery' && resumo.taxaEntrega > 0 && (
+                <p className="-mt-2 mb-3 text-sm text-muted-foreground">
+                  Itens {formatBRL(fromCents(toCents(resumo.porCanal.delivery) - toCents(resumo.taxaEntrega)))} + taxas de entrega{' '}
+                  {formatBRL(resumo.taxaEntrega)}
+                </p>
+              )}
               {movimentos.isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin text-gold-ink" />
               ) : lista.length === 0 ? (
@@ -166,7 +177,12 @@ export default function CaixaPage() {
                         {m.cliente ? <span className="font-normal text-muted-foreground"> · {m.cliente}</span> : null}
                       </span>
                       <span className="text-muted-foreground">{FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
-                      <strong className="tabular-nums">{formatBRL(m.valor)}</strong>
+                      <span className="flex flex-col items-end">
+                        <strong className="tabular-nums">{formatBRL(m.valor)}</strong>
+                        {m.taxa_entrega > 0 && (
+                          <span className="text-xs text-muted-foreground">entrega {formatBRL(m.taxa_entrega)}</span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

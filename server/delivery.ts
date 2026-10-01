@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import { buscarBairroAtivo } from './bairros.js';
 import { query } from './db.js';
 import { ApiError } from './http.js';
 import { carregarItensPrecificados, money, type ItemPedidoMesa } from './mesas.js';
@@ -28,7 +29,7 @@ export const pedidoDeliverySchema = z.object({
   nome_cliente: z.string().trim().min(2, 'Informe seu nome.').max(80),
   telefone_cliente: z.string().trim().min(8, 'Informe um telefone válido.').max(30),
   endereco_cliente: z.string().trim().min(3, 'Informe o endereço.').max(200),
-  bairro_cliente: z.string().trim().min(2, 'Informe o bairro.').max(80),
+  bairro_cliente: z.string().trim().min(2, 'Escolha o bairro.').max(80),
   complemento_cliente: z.string().trim().max(200).nullish(),
   observacoes_cliente: z.string().trim().max(500).nullish(),
   forma_pagamento: formaPagamentoSchema.default('pix'),
@@ -112,6 +113,13 @@ export async function criarPedidoDelivery(input: z.infer<typeof pedidoDeliverySc
     throw new ApiError(429, 'Muitos pedidos em sequência. Aguarde alguns minutos ou fale conosco pelo WhatsApp.');
   }
 
+  // Só bairros cadastrados e ativos; a taxa vem do cadastro, nunca do navegador.
+  const bairro = await buscarBairroAtivo(input.bairro_cliente);
+
+  if (!bairro) {
+    throw new ApiError(400, 'Ainda não entregamos neste bairro. Escolha um bairro da lista.');
+  }
+
   // O id do item no carrinho é "produto" ou "produto:opcao".
   const { itens, total } = await carregarItensPrecificados(
     input.itens.map((item) => ({
@@ -124,19 +132,23 @@ export async function criarPedidoDelivery(input: z.infer<typeof pedidoDeliverySc
   const token = randomBytes(18).toString('base64url');
   const [row] = await query<DeliveryRow>(
     `insert into pedidos_delivery
-       (tracking_token, nome, telefone, endereco, bairro, complemento, observacoes, itens, subtotal, valor_total, forma_pagamento)
-     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9, $10)
+       (tracking_token, nome, telefone, endereco, bairro, bairro_id, complemento, observacoes, itens,
+        subtotal, taxa_entrega, valor_total, forma_pagamento)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13)
      returning ${COLUNAS}`,
     [
       token,
       input.nome_cliente,
       telefone,
       input.endereco_cliente,
-      input.bairro_cliente,
+      bairro.nome,
+      bairro.id,
       input.complemento_cliente || null,
       input.observacoes_cliente || null,
       JSON.stringify(itens),
       total,
+      bairro.taxa,
+      fromCents(toCents(total) + toCents(bairro.taxa)),
       input.forma_pagamento,
     ]
   );
@@ -145,6 +157,8 @@ export async function criarPedidoDelivery(input: z.infer<typeof pedidoDeliverySc
   return {
     id: row.id,
     status: row.status,
+    subtotal: money(row.subtotal),
+    taxa_entrega: bairro.taxa,
     valor_total: money(row.valor_total),
     created_at: new Date(row.created_at).toISOString(),
     tracking_token: token,
@@ -164,6 +178,8 @@ export async function getStatusPedidoDelivery(id: string, token: string) {
   return {
     id: pedido.id,
     status: pedido.status,
+    subtotal: pedido.subtotal,
+    taxa_entrega: pedido.taxa_entrega,
     valor_total: pedido.valor_total,
     created_at: pedido.created_at,
     cancel_until: pedido.created_at,

@@ -28,17 +28,20 @@ export interface Movimento {
   cliente: string | null;
   metodo: string;
   valor: number;
+  /** parte do valor que é taxa de entrega (0 nas mesas) */
+  taxa_entrega: number;
 }
 
 export async function getMovimentosCaixa(periodo: z.infer<typeof periodoSchema>): Promise<Movimento[]> {
-  const rows = await query<{ id: string; data: string; canal: 'mesa' | 'delivery'; referencia: string; cliente: string | null; metodo: string; valor: string }>(
+  const rows = await query<{ id: string; data: string; canal: 'mesa' | 'delivery'; referencia: string; cliente: string | null; metodo: string; valor: string; taxa_entrega: string | null }>(
     `with ${CFG}
      select p.id,
             to_char(p.created_at at time zone cfg.tz, 'YYYY-MM-DD"T"HH24:MI:SS') as data,
             p.canal,
             case when p.canal = 'mesa' then coalesce(m.nome, 'Mesa') else 'Delivery nº ' || d.numero end as referencia,
             case when p.canal = 'delivery' then d.nome end as cliente,
-            p.metodo, p.valor
+            p.metodo, p.valor,
+            case when p.canal = 'delivery' then least(coalesce(d.taxa_entrega, 0), p.valor) else 0 end as taxa_entrega
        from pagamentos p
        cross join cfg
        left join contas_mesa c on c.id = p.conta_id
@@ -50,7 +53,7 @@ export async function getMovimentosCaixa(periodo: z.infer<typeof periodoSchema>)
     [periodo.de, periodo.ate]
   );
 
-  return rows.map((row) => ({ ...row, valor: money(row.valor) }));
+  return rows.map((row) => ({ ...row, valor: money(row.valor), taxa_entrega: money(row.taxa_entrega ?? 0) }));
 }
 
 // --- Vendas (métricas e desempenho) ---

@@ -25,11 +25,9 @@ export async function gerarExcelFluxoCaixa(movimentos: MovimentoCaixa[], periodo
   resumo.columns = [{ width: 28 }, { width: 22 }];
   dados.resumo.forEach((linha) => resumo.addRow(linha));
   resumo.getCell('A1').font = { bold: true, size: 14, color: { argb: VERDE } };
-  ['A6', 'A11'].forEach((ref) => {
-    resumo.getRow(Number(ref.slice(1))).eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: VERDE } };
-    });
+  // Cabeçalhos das tabelas do resumo ("Por forma…", "Por canal").
+  resumo.eachRow((row) => {
+    if (row.getCell(2).value === 'Valor') cabecalho(row);
   });
   resumo.getCell('B4').font = { bold: true, color: { argb: VERDE } };
   resumo.eachRow((row, numero) => {
@@ -41,22 +39,22 @@ export async function gerarExcelFluxoCaixa(movimentos: MovimentoCaixa[], periodo
 
   // Movimentações
   const mov = wb.addWorksheet('Movimentações');
-  mov.columns = [{ width: 12 }, { width: 8 }, { width: 10 }, { width: 20 }, { width: 24 }, { width: 20 }, { width: 14 }];
+  mov.columns = [{ width: 12 }, { width: 8 }, { width: 10 }, { width: 20 }, { width: 24 }, { width: 20 }, { width: 14 }, { width: 16 }, { width: 14 }];
   cabecalho(mov.addRow(dados.movimentacoes.cabecalho));
   dados.movimentacoes.linhas.forEach((linha) => mov.addRow(linha));
-  mov.getColumn(7).numFmt = MOEDA;
-  mov.autoFilter = { from: 'A1', to: `G${Math.max(dados.movimentacoes.linhas.length + 1, 1)}` };
+  [7, 8, 9].forEach((col) => (mov.getColumn(col).numFmt = MOEDA));
+  mov.autoFilter = { from: 'A1', to: `I${Math.max(dados.movimentacoes.linhas.length + 1, 1)}` };
   mov.views = [{ state: 'frozen', ySplit: 1 }];
-  const totalMov = mov.addRow(['', '', '', '', '', 'Total', dados.movimentacoes.total]);
+  const totalMov = mov.addRow(['', '', '', '', '', 'Total', dados.movimentacoes.itens, dados.movimentacoes.taxaEntrega, dados.movimentacoes.total]);
   totalMov.font = { bold: true };
-  totalMov.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DOURADO } };
+  totalMov.getCell(9).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DOURADO } };
 
   // Por dia
   const dia = wb.addWorksheet('Por dia');
-  dia.columns = [{ width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }];
+  dia.columns = [{ width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 26 }];
   cabecalho(dia.addRow(dados.porDia.cabecalho));
   dados.porDia.linhas.forEach((linha) => dia.addRow(linha));
-  [2, 3, 4, 5].forEach((col) => (dia.getColumn(col).numFmt = MOEDA));
+  [2, 3, 4, 5, 6].forEach((col) => (dia.getColumn(col).numFmt = MOEDA));
   dia.views = [{ state: 'frozen', ySplit: 1 }];
 
   const buffer = await wb.xlsx.writeBuffer();

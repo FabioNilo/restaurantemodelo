@@ -60,6 +60,8 @@ export interface MovimentoCaixa {
   cliente: string | null;
   metodo: FormaPagamento;
   valor: number;
+  /** parte do valor que é taxa de entrega (0 nas mesas) */
+  taxa_entrega: number;
 }
 
 interface Indicador {
@@ -100,4 +102,15 @@ export interface Desempenho {
   parados: number;
   movers: { up: RankingRow[]; down: RankingRow[] };
   ranking: RankingRow[];
+}
+
+/** Bairro atendido pelo delivery, com taxa única (Configurações → Bairros). */
+export interface BairroEntrega {
+  id: number;
+  nome: string;
+  taxa: number;
+  /** false = pausado: some do carrinho, mas continua cadastrado */
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
 }

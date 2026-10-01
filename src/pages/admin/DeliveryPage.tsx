@@ -170,9 +170,14 @@ export default function DeliveryPage() {
                 </p>
               )}
 
-              <div className="flex items-center justify-between border-t pt-2">
-                <span className="text-muted-foreground">{FORMA_PAGAMENTO_LABELS[p.forma_pagamento]} · entrega a combinar</span>
-                <strong className="font-display text-xl text-gold-ink">{formatBRL(p.subtotal)}</strong>
+              <div className="flex items-end justify-between gap-3 border-t pt-2">
+                <span className="text-muted-foreground">
+                  {FORMA_PAGAMENTO_LABELS[p.forma_pagamento]}
+                  <span className="block text-xs">
+                    Itens {formatBRL(p.subtotal)} + entrega {p.taxa_entrega === null ? 'a combinar' : formatBRL(p.taxa_entrega)}
+                  </span>
+                </span>
+                <strong className="font-display text-xl text-gold-ink">{formatBRL(p.valor_total)}</strong>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -241,7 +246,14 @@ export default function DeliveryPage() {
               ))}
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="taxa-entrega">Taxa de entrega</Label>
+              <Label htmlFor="taxa-entrega">
+                Taxa de entrega
+                {entregando?.taxa_entrega !== null && entregando?.taxa_entrega !== undefined && (
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {entregando.bairro}: {formatBRL(entregando.taxa_entrega)} (pode ajustar)
+                  </span>
+                )}
+              </Label>
               <DecimalInput id="taxa-entrega" value={taxa} onValueChange={setTaxa} className="h-10 w-28 text-right" />
             </div>
             {entregando && (

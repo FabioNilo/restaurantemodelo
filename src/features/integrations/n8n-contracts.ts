@@ -98,6 +98,8 @@ export interface PedidoCreateRequest {
 export interface PedidoCreateResponse {
   id: string;
   status: string;
+  subtotal?: number;
+  taxa_entrega?: number | null;
   valor_total: number;
   created_at: string;
   tracking_token?: string;
@@ -114,6 +116,8 @@ export interface PedidoStatusItem {
 }
 
 export interface PedidoStatusResponse {
+  subtotal?: number;
+  taxa_entrega?: number | null;
   id: string;
   status: string;
   valor_total: number;

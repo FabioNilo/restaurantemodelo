@@ -5,22 +5,24 @@ import { nomeArquivoFluxoCaixa, planilhasFluxoCaixa, resumirCaixa } from './flux
 import { periodoDoAtalho } from './periodos';
 
 const movimentos: MovimentoCaixa[] = [
-  { id: '1', data: '2026-09-29T19:10:00', canal: 'mesa', referencia: 'Mesa 2', cliente: null, metodo: 'pix', valor: 12 },
-  { id: '2', data: '2026-09-29T19:10:00', canal: 'mesa', referencia: 'Mesa 2', cliente: null, metodo: 'cartao_credito', valor: 12 },
-  { id: '3', data: '2026-09-30T12:05:00', canal: 'delivery', referencia: 'Delivery nº 1', cliente: 'Carla', metodo: 'cartao_debito', valor: 40.9 },
-  { id: '4', data: '2026-09-30T13:00:00', canal: 'mesa', referencia: 'Mesa 1', cliente: null, metodo: 'pix', valor: 0.1 },
+  { id: '1', data: '2026-09-29T19:10:00', canal: 'mesa', referencia: 'Mesa 2', cliente: null, metodo: 'pix', valor: 12, taxa_entrega: 0 },
+  { id: '2', data: '2026-09-29T19:10:00', canal: 'mesa', referencia: 'Mesa 2', cliente: null, metodo: 'cartao_credito', valor: 12, taxa_entrega: 0 },
+  { id: '3', data: '2026-09-30T12:05:00', canal: 'delivery', referencia: 'Delivery nº 1', cliente: 'Carla', metodo: 'cartao_debito', valor: 40.9, taxa_entrega: 6.5 },
+  { id: '4', data: '2026-09-30T13:00:00', canal: 'mesa', referencia: 'Mesa 1', cliente: null, metodo: 'pix', valor: 0.1, taxa_entrega: 0 },
 ];
 
 describe('resumo do caixa', () => {
   it('soma por forma, canal e dia em centavos', () => {
     const r = resumirCaixa(movimentos);
     expect(r.total).toBe(65);
+    expect(r.taxaEntrega).toBe(6.5);
+    expect(r.itens).toBe(58.5);
     expect(r.quantidade).toBe(4);
     expect(r.porForma).toEqual({ pix: 12.1, cartao_debito: 40.9, cartao_credito: 12 });
     expect(r.porCanal).toEqual({ mesa: 24.1, delivery: 40.9 });
     expect(r.porDia).toEqual([
-      { dia: '2026-09-29', pix: 12, cartao_debito: 0, cartao_credito: 12, total: 24 },
-      { dia: '2026-09-30', pix: 0.1, cartao_debito: 40.9, cartao_credito: 0, total: 41 },
+      { dia: '2026-09-29', pix: 12, cartao_debito: 0, cartao_credito: 12, total: 24, taxaEntrega: 0 },
+      { dia: '2026-09-30', pix: 0.1, cartao_debito: 40.9, cartao_credito: 0, total: 41, taxaEntrega: 6.5 },
     ]);
   });
 });
@@ -31,15 +33,18 @@ describe('planilhas do Excel', () => {
 
     expect(p.resumo).toContainEqual(['Período', '29/09/2026 a 30/09/2026']);
     expect(p.resumo).toContainEqual(['Total recebido', 65]);
+    expect(p.resumo).toContainEqual(['Vendas (itens)', 58.5]);
+    expect(p.resumo).toContainEqual(['Taxas de entrega', 6.5]);
     expect(p.resumo).toContainEqual(['Débito', 40.9]);
     expect(p.resumo).toContainEqual(['Delivery', 40.9]);
 
-    expect(p.movimentacoes.cabecalho).toEqual(['Data', 'Hora', 'Canal', 'Referência', 'Cliente', 'Forma de pagamento', 'Valor']);
-    expect(p.movimentacoes.linhas[2]).toEqual(['30/09/2026', '12:05', 'Delivery', 'Delivery nº 1', 'Carla', 'Débito', 40.9]);
+    expect(p.movimentacoes.cabecalho).toEqual(['Data', 'Hora', 'Canal', 'Referência', 'Cliente', 'Forma de pagamento', 'Itens', 'Taxa de entrega', 'Valor']);
+    expect(p.movimentacoes.linhas[2]).toEqual(['30/09/2026', '12:05', 'Delivery', 'Delivery nº 1', 'Carla', 'Débito', 34.4, 6.5, 40.9]);
     expect(p.movimentacoes.total).toBe(65);
+    expect(p.movimentacoes.taxaEntrega).toBe(6.5);
 
-    expect(p.porDia.cabecalho).toEqual(['Data', 'Pix', 'Débito', 'Crédito', 'Total']);
-    expect(p.porDia.linhas[0]).toEqual(['29/09/2026', 12, 0, 12, 24]);
+    expect(p.porDia.cabecalho).toEqual(['Data', 'Pix', 'Débito', 'Crédito', 'Total', 'Taxas de entrega (incluídas)']);
+    expect(p.porDia.linhas[1]).toEqual(['30/09/2026', 0.1, 40.9, 0, 41, 6.5]);
   });
 
   it('nomeia o arquivo com o período', () => {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { isDeliveryClosed, SITE_CLOSED_MESSAGE } from '../../src/lib/site-settings.js';
+import { consultarTaxaEntrega, listarZonasEntrega } from '../bairros.js';
 import { getConfiguracoes, getPublicCatalog } from '../catalog.js';
 import { criarPedidoDelivery, getStatusPedidoDelivery, pedidoDeliverySchema } from '../delivery.js';
 import { fail, noStore, ok, publicCache } from '../http.js';
@@ -24,24 +25,18 @@ publicRoutes.get('/site-status', async (c) => {
   });
 });
 
-// Módulos ainda não habilitados nesta versão (Pedidos e Taxas de entrega).
-// As respostas abaixo fazem o carrinho cair no fluxo que já existe: bairro
-// digitado à mão, taxa "a combinar" e pedido enviado direto pelo WhatsApp.
-publicRoutes.get('/delivery-zones', (c) => {
-  publicCache(c, 300);
-  return ok(c, []);
+// Bairros atendidos e taxa de entrega (cadastro em /admin/configuracoes).
+// Cache curto: pausar um bairro aparece no carrinho em até ~30 s.
+publicRoutes.get('/delivery-zones', async (c) => {
+  publicCache(c, 30, 60);
+  return ok(c, await listarZonasEntrega());
 });
 
 publicRoutes.post('/delivery-fee', async (c) => {
-  const body = await c.req.json<{ bairro?: string }>().catch(() => ({ bairro: '' }));
-
-  return ok(c, {
-    bairro: body.bairro ?? '',
-    taxa: null,
-    encontrado: false,
-    entrega_disponivel: true,
-    motivo_indisponivel: null,
-  });
+  noStore(c);
+  const body = await c.req.json<{ bairro?: unknown }>().catch(() => ({ bairro: '' }));
+  const bairro = z.string().trim().max(80).catch('').parse(body.bairro);
+  return ok(c, await consultarTaxaEntrega(bairro));
 });
 
 // Pedido de delivery: registrado aqui (preços do cardápio) e o site abre o WhatsApp em seguida.

@@ -20,6 +20,15 @@ import {
   updateProduto,
   updateProdutoEstoque,
 } from '../catalog.js';
+import {
+  atualizarBairro,
+  atualizarBairroSchema,
+  criarBairro,
+  criarBairroSchema,
+  excluirBairro,
+  excluirBairroSchema,
+  listarBairros,
+} from '../bairros.js';
 import { ApiError, noStore, ok } from '../http.js';
 import {
   atualizarStatusDelivery,
@@ -157,6 +166,23 @@ const actions: Record<string, ActionDefinition> = {
     run: async (payload) => cancelarConta(contaIdSchema.parse(payload).id),
   },
   // --- Delivery ---
+  // --- Bairros e taxas de entrega (Configurações) ---
+  'bairros.list': {
+    roles: ['admin'],
+    run: async () => listarBairros(),
+  },
+  'bairros.create': {
+    roles: ['admin'],
+    run: async (payload) => criarBairro(criarBairroSchema.parse(payload)),
+  },
+  'bairros.update': {
+    roles: ['admin'],
+    run: async (payload) => atualizarBairro(atualizarBairroSchema.parse(payload)),
+  },
+  'bairros.delete': {
+    roles: ['admin'],
+    run: async (payload) => excluirBairro(excluirBairroSchema.parse(payload)),
+  },
   'delivery.list': {
     roles: ['admin', 'gestor'],
     run: async () => listarDelivery(),

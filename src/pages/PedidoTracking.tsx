@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { BRAND } from '@/lib/brand';
 import { cancelPedidoN8n, fetchPedidoStatusN8n } from '@/features/integrations/marmitas-api';
 import type { PedidoStatusItem, PedidoStatusResponse } from '@/features/integrations/n8n-contracts';
+import { formaPagamentoLabel } from '@/lib/pagamentos';
 
 const STATUS_LABELS: Record<string, string> = {
   enviado_whatsapp: 'Pedido enviado',
@@ -256,7 +257,13 @@ export default function PedidoTracking() {
 
             <div className="flex items-end justify-between gap-4">
               <div className="text-sm text-muted-foreground">
-                <p>Pagamento: <span className="font-bold text-foreground">{pedido.forma_pagamento === 'cartao_credito' ? 'Cartão de crédito' : 'Pix'}</span></p>
+                <p>Pagamento: <span className="font-bold text-foreground">{formaPagamentoLabel(pedido.forma_pagamento)}</span></p>
+                {typeof pedido.taxa_entrega === 'number' ? (
+                  <p>
+                    Entrega{pedido.bairro_cliente ? ` (${pedido.bairro_cliente})` : ''}:{' '}
+                    <span className="font-bold text-foreground">{formatCurrency(pedido.taxa_entrega)}</span>
+                  </p>
+                ) : null}
                 {pedido.observacoes_cliente ? <p>Observações: {pedido.observacoes_cliente}</p> : null}
               </div>
               <div className="text-right">

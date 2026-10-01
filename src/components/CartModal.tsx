@@ -7,14 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { CartItemsList } from '@/components/CartItemsList';
 import { useCart } from '@/context/CartContext';
-import { createPedidoN8n, fetchDeliveryFeeN8n, fetchDeliveryZonesN8n } from '@/features/integrations/marmitas-api';
+import { createPedidoN8n, fetchDeliveryZonesN8n } from '@/features/integrations/marmitas-api';
 import type { DeliveryZone } from '@/features/integrations/n8n-contracts';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { toast } from '@/hooks/use-toast';
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/api';
 import { BRAND } from '@/lib/brand';
 import { buildWhatsAppUrl, DEFAULT_SITE_SETTINGS } from '@/lib/site-settings';
 import type { CustomerData } from '@/types/product';
-import { calcularTaxaEntrega } from '@/utils/deliveryFee';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -35,133 +34,13 @@ const PAYMENT_OPTIONS = [
   { value: 'cartao_credito', label: 'Crédito', icon: CreditCard },
 ] as const;
 
-interface DeliveryQuote {
-  bairro: string;
-  taxa: number | null;
-  encontrado: boolean;
-  entrega_disponivel: boolean;
-  motivo_indisponivel?: string | null;
-  regra_aplicada?: string | null;
-  observacao?: string | null;
-}
-
-type DeliveryFeePayload = Record<string, unknown> & {
-  taxa?: unknown;
-  entrega_disponivel?: unknown;
-};
-
-const DELIVERY_FEE_FIELDS = [
-  'taxa',
-  'taxa_entrega',
-  'valor_entrega',
-  'delivery_fee',
-  'valor_delivery',
-  'fee',
-] as const;
-
 function formatCurrency(value: number) {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 }
 
-function parseBoolean(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') return value;
-
-  if (typeof value === 'string') {
-    const normalizedValue = value.trim().toLocaleLowerCase('pt-BR');
-
-    if (['true', '1', 'sim', 's', 'yes'].includes(normalizedValue)) return true;
-    if (['false', '0', 'nao', 'não', 'n', 'no'].includes(normalizedValue)) return false;
-  }
-
-  if (typeof value === 'number') {
-    return value === 1;
-  }
-
-  return fallback;
-}
-
-function parseMoneyValue(value: unknown) {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const cleanValue = value
-    .trim()
-    .replace(/[R$\s]/gi, '')
-    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
-    .replace(',', '.');
-  const parsedValue = Number(cleanValue);
-
-  return Number.isFinite(parsedValue) ? parsedValue : null;
-}
-
-function normalizeNeighborhoodValue(value: string | null | undefined) {
-  return (value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLocaleLowerCase('pt-BR');
-}
-
-function getDeliveryFeeFromPayload(payload: DeliveryFeePayload) {
-  for (const field of DELIVERY_FEE_FIELDS) {
-    const parsedValue = parseMoneyValue(payload[field]);
-
-    if (parsedValue !== null) {
-      return parsedValue;
-    }
-  }
-
-  return null;
-}
-
-function getZoneFeeLabel(zone: DeliveryZone) {
-  return zone.bairro;
-}
-
-function findDeliveryZoneByNeighborhood(zones: DeliveryZone[], neighborhood: string) {
-  const normalizedNeighborhood = normalizeNeighborhoodValue(neighborhood);
-
-  return zones.find((zone) => normalizeNeighborhoodValue(zone.bairro) === normalizedNeighborhood) ?? null;
-}
-
-function getConfiguredDeliveryFee(zone: DeliveryZone | null) {
-  if (!zone) return null;
-
-  const legacyFee = parseMoneyValue(zone.taxa);
-
-  if (legacyFee !== null) {
-    return legacyFee;
-  }
-
-  return calcularTaxaEntrega(zone, Date.now(), []);
-}
-
-function getConfirmedDeliveryFee(quote: DeliveryQuote) {
-  return quote.entrega_disponivel && quote.taxa !== null ? quote.taxa : null;
-}
-
-function isDeliveryExplicitlyUnavailable(quote: DeliveryQuote) {
-  return quote.encontrado && !quote.entrega_disponivel && quote.regra_aplicada === 'sem_entrega';
-}
-
-function normalizeDeliveryQuote(rawQuote: DeliveryFeePayload, fallbackNeighborhood: string): DeliveryQuote {
-  const parsedTaxa = getDeliveryFeeFromPayload(rawQuote);
-
-  return {
-    bairro: typeof rawQuote.bairro === 'string' && rawQuote.bairro.trim() ? rawQuote.bairro : fallbackNeighborhood,
-    taxa: parsedTaxa,
-    encontrado: parseBoolean(rawQuote.encontrado),
-    entrega_disponivel: parseBoolean(rawQuote.entrega_disponivel, parsedTaxa !== null),
-    motivo_indisponivel: typeof rawQuote.motivo_indisponivel === 'string' ? rawQuote.motivo_indisponivel : null,
-    regra_aplicada: typeof rawQuote.regra_aplicada === 'string' ? rawQuote.regra_aplicada : null,
-    observacao: typeof rawQuote.observacao === 'string' ? rawQuote.observacao : null,
-  };
-}
+// Recusas que o cliente consegue corrigir (bairro fora da lista, telefone,
+// muitos pedidos seguidos): mostram o motivo e não abrem o WhatsApp.
+const RECUSAS_DO_PEDIDO = [400, 409, 429];
 
 export function CartModal({
   isOpen,
@@ -169,17 +48,11 @@ export function CartModal({
   whatsappNumber = DEFAULT_SITE_SETTINGS.whatsapp_numero,
 }: CartModalProps) {
   const { items, totalPrice, clearCart } = useCart();
-  const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote>({
-    bairro: 'Entrega',
-    taxa: null,
-    encontrado: false,
-    entrega_disponivel: false,
-    observacao: 'Selecione o bairro para consultar a entrega de hoje',
-  });
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [deliveryZonesLoading, setDeliveryZonesLoading] = useState(false);
   const [deliveryZonesError, setDeliveryZonesError] = useState(false);
-  const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false);
+  const [deliveryZonesLoaded, setDeliveryZonesLoaded] = useState(false);
+  const [deliveryZonesAttempt, setDeliveryZonesAttempt] = useState(0);
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
   const [submitting, setSubmitting] = useState(false);
   const [customerData, setCustomerData] = useState<CustomerData>({
@@ -191,30 +64,18 @@ export function CartModal({
     observations: '',
     paymentMethod: 'pix',
   });
-  const debouncedNeighborhood = useDebouncedValue(customerData.neighborhood.trim(), 500);
 
-  const selectedDeliveryZone = findDeliveryZoneByNeighborhood(deliveryZones, customerData.neighborhood);
-  const configuredDeliveryFee = getConfiguredDeliveryFee(selectedDeliveryZone);
-  const confirmedDeliveryFee = getConfirmedDeliveryFee(deliveryQuote);
-  const hasCheckedDelivery =
-    normalizeNeighborhoodValue(deliveryQuote.bairro) === normalizeNeighborhoodValue(customerData.neighborhood) &&
-    (deliveryQuote.entrega_disponivel || Boolean(deliveryQuote.motivo_indisponivel));
-  const deliveryUnavailable = hasCheckedDelivery && isDeliveryExplicitlyUnavailable(deliveryQuote);
-  const effectiveDeliveryFee = !deliveryUnavailable ? (confirmedDeliveryFee ?? configuredDeliveryFee) : null;
-  const deliveryFeeValue = effectiveDeliveryFee ?? 0;
-  const deliveryFeePending = hasCheckedDelivery && effectiveDeliveryFee === null && !deliveryUnavailable;
-  const orderTotal = totalPrice + deliveryFeeValue;
-  const deliveryFeeSummaryLabel = deliveryFeeLoading
-    ? 'Consultando...'
-    : effectiveDeliveryFee !== null
-      ? formatCurrency(effectiveDeliveryFee)
-      : deliveryFeePending
-        ? 'A confirmar'
-        : 'Informe o bairro';
-  const orderTotalSummaryLabel = deliveryFeePending ? 'A confirmar' : formatCurrency(orderTotal);
+  // Bairros e taxas cadastrados em /admin/configuracoes. Só dá para pedir
+  // escolhendo um bairro da lista; a taxa entra no total na hora.
+  const selectedDeliveryZone = deliveryZones.find((zone) => zone.bairro === customerData.neighborhood) ?? null;
+  const deliveryFee = selectedDeliveryZone ? Number(selectedDeliveryZone.taxa ?? selectedDeliveryZone.taxa_quinta_sexta ?? 0) : null;
+  const orderTotal = totalPrice + (deliveryFee ?? 0);
+  const noDeliveryZones = deliveryZonesLoaded && deliveryZones.length === 0;
+  const deliveryFeeSummaryLabel =
+    deliveryFee === null ? 'Escolha o bairro' : deliveryFee === 0 ? 'Grátis' : formatCurrency(deliveryFee);
 
   useEffect(() => {
-    if (!isOpen || step !== 'checkout' || deliveryZones.length > 0) {
+    if (!isOpen || step !== 'checkout') {
       return;
     }
 
@@ -225,7 +86,13 @@ export function CartModal({
     fetchDeliveryZonesN8n()
       .then((zones) => {
         if (ignore) return;
-        setDeliveryZones(zones.filter((zone) => zone.ativo));
+        const ativas = zones.filter((zone) => zone.ativo);
+        setDeliveryZones(ativas);
+        setDeliveryZonesLoaded(true);
+        // Bairro escolhido antes e depois pausado: limpa a escolha.
+        setCustomerData((prev) =>
+          prev.neighborhood && !ativas.some((zone) => zone.bairro === prev.neighborhood) ? { ...prev, neighborhood: '' } : prev
+        );
       })
       .catch(() => {
         if (ignore) return;
@@ -238,7 +105,7 @@ export function CartModal({
     return () => {
       ignore = true;
     };
-  }, [deliveryZones.length, isOpen, step]);
+  }, [deliveryZonesAttempt, isOpen, step]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
@@ -247,96 +114,12 @@ export function CartModal({
 
   const handleNeighborhoodChange = (bairro: string) => {
     setCustomerData((prev) => ({ ...prev, neighborhood: bairro }));
-    setDeliveryQuote({
-      bairro,
-      taxa: null,
-      encontrado: false,
-      entrega_disponivel: false,
-      observacao: null,
-    });
   };
-
-  const resolveDeliveryFee = useCallback(async (bairro: string, silent = true): Promise<DeliveryQuote> => {
-    const normalizedNeighborhood = bairro.trim();
-
-    if (!normalizedNeighborhood) {
-      return deliveryQuote;
-    }
-
-    setDeliveryFeeLoading(true);
-
-    try {
-      const quote = await fetchDeliveryFeeN8n({ bairro: normalizedNeighborhood });
-      const nextQuote = normalizeDeliveryQuote(quote as unknown as DeliveryFeePayload, normalizedNeighborhood);
-
-      setDeliveryQuote(nextQuote);
-      return nextQuote;
-    } catch (error) {
-      const fallbackQuote: DeliveryQuote = {
-        bairro: normalizedNeighborhood,
-        taxa: null,
-        encontrado: false,
-        entrega_disponivel: false,
-        motivo_indisponivel: 'Não foi possível consultar a entrega agora.',
-        observacao: 'Consulta indisponível',
-      };
-
-      setDeliveryQuote(fallbackQuote);
-
-      if (!silent) {
-        toast({
-          title: 'Entrega indisponível',
-          description: 'Não consegui consultar a taxa do bairro agora. Tente novamente em alguns instantes.',
-          variant: 'destructive',
-        });
-      }
-
-      return fallbackQuote;
-    } finally {
-      setDeliveryFeeLoading(false);
-    }
-  }, [deliveryQuote]);
-
-  useEffect(() => {
-    if (!isOpen || step !== 'checkout') {
-      return;
-    }
-
-    if (!debouncedNeighborhood) {
-      if (
-        deliveryQuote.bairro === 'Entrega' &&
-        deliveryQuote.taxa === null &&
-        !deliveryQuote.entrega_disponivel &&
-        deliveryQuote.observacao === 'Informe o bairro para consultar a entrega de hoje'
-      ) {
-        return;
-      }
-
-      setDeliveryQuote({
-        bairro: 'Entrega',
-        taxa: null,
-        encontrado: false,
-        entrega_disponivel: false,
-        observacao: 'Informe o bairro para consultar a entrega de hoje',
-      });
-      return;
-    }
-
-    const hasCurrentQuote =
-      normalizeNeighborhoodValue(deliveryQuote.bairro) === normalizeNeighborhoodValue(debouncedNeighborhood) &&
-      (deliveryQuote.entrega_disponivel || Boolean(deliveryQuote.motivo_indisponivel));
-
-    if (hasCurrentQuote) {
-      return;
-    }
-
-    void resolveDeliveryFee(debouncedNeighborhood, true);
-  }, [debouncedNeighborhood, deliveryQuote, isOpen, resolveDeliveryFee, step]);
 
   if (!isOpen) return null;
 
-  const generateWhatsAppMessage = (deliveryFee: number | null, trackingUrl?: string) => {
-    const finalTotal = deliveryFee === null ? null : totalPrice + deliveryFee;
+  const generateWhatsAppMessage = (deliveryFee: number, trackingUrl?: string) => {
+    const finalTotal = totalPrice + deliveryFee;
     const itemsList = items
       .map((item) => {
         const size = item.tamanho_nome ? ` (${item.tamanho_nome}${item.tamanho_serve ? ` - ${item.tamanho_serve}` : ''})` : '';
@@ -363,8 +146,8 @@ export function CartModal({
       '',
       '*Resumo*',
       `Subtotal: ${formatCurrency(totalPrice)}`,
-      `Taxa de delivery: ${deliveryFee === null ? 'A confirmar' : formatCurrency(deliveryFee)}`,
-      `Total do pedido: ${finalTotal === null ? 'A confirmar' : formatCurrency(finalTotal)}`,
+      `Taxa de entrega (${customerData.neighborhood}): ${formatCurrency(deliveryFee)}`,
+      `Total do pedido: ${formatCurrency(finalTotal)}`,
     ];
 
     if (trackingUrl) {
@@ -388,7 +171,7 @@ export function CartModal({
   };
 
   const handleSubmitOrder = async () => {
-    if (!customerData.name || !customerData.phone || !customerData.address || !customerData.neighborhood || !customerData.complement?.trim()) {
+    if (!customerData.name || !customerData.phone || !customerData.address || !customerData.complement?.trim()) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos obrigatórios.',
@@ -397,22 +180,17 @@ export function CartModal({
       return;
     }
 
-    setSubmitting(true);
-    const finalDeliveryQuote = await resolveDeliveryFee(customerData.neighborhood, false);
-
-    if (isDeliveryExplicitlyUnavailable(finalDeliveryQuote)) {
-      setSubmitting(false);
+    if (!selectedDeliveryZone || deliveryFee === null) {
       toast({
-        title: 'Hoje não há entrega normal para este bairro',
-        description: finalDeliveryQuote.motivo_indisponivel ?? 'Tente em um dia com delivery ou em uma data especial.',
+        title: 'Escolha o bairro',
+        description: 'Selecione o bairro de entrega na lista para ver a taxa e finalizar o pedido.',
         variant: 'destructive',
       });
       return;
     }
 
-    const configuredDeliveryFee = getConfiguredDeliveryFee(findDeliveryZoneByNeighborhood(deliveryZones, customerData.neighborhood));
-    const finalDeliveryFee = getConfirmedDeliveryFee(finalDeliveryQuote) ?? configuredDeliveryFee;
-    const finalOrderTotal = totalPrice + (finalDeliveryFee ?? 0);
+    setSubmitting(true);
+    let finalDeliveryFee = deliveryFee;
     let whatsappUrl = buildWhatsAppUrl(whatsappNumber, generateWhatsAppMessage(finalDeliveryFee));
     let trackingPath: string | null = null;
 
@@ -430,12 +208,12 @@ export function CartModal({
       const pedido = await createPedidoN8n({
         itens: pedidoItens,
         subtotal: totalPrice,
-        taxa_entrega: finalDeliveryFee ?? undefined,
-        valor_total: finalOrderTotal,
+        taxa_entrega: finalDeliveryFee,
+        valor_total: orderTotal,
         nome_cliente: customerData.name,
         telefone_cliente: customerData.phone,
         endereco_cliente: customerData.address,
-        bairro_cliente: customerData.neighborhood,
+        bairro_cliente: selectedDeliveryZone.bairro,
         complemento_cliente: customerData.complement.trim(),
         observacoes_cliente: customerData.observations || null,
         tipo_entrega: 'delivery',
@@ -443,6 +221,8 @@ export function CartModal({
         tracking_base_url: buildTrackingBaseUrl(),
       });
 
+      // A taxa que vale é a do servidor (cadastro do bairro).
+      if (typeof pedido.taxa_entrega === 'number') finalDeliveryFee = pedido.taxa_entrega;
       trackingPath = getTrackingPath(pedido.id, pedido.tracking_token);
       whatsappUrl = buildWhatsAppUrl(
         whatsappNumber,
@@ -452,13 +232,25 @@ export function CartModal({
         )
       );
     } catch (error) {
-      console.warn('Pedido seguirá pelo WhatsApp, mas não foi registrado no n8n:', error);
+      const status = getApiErrorStatus(error);
+
+      if (status !== undefined && RECUSAS_DO_PEDIDO.includes(status)) {
+        setSubmitting(false);
+        toast({ title: 'Não foi possível enviar o pedido', description: getApiErrorMessage(error), variant: 'destructive' });
+
+        // Bairro pausado enquanto o cliente preenchia: recarrega a lista.
+        if (status === 400) setDeliveryZonesAttempt((n) => n + 1);
+        return;
+      }
+
+      console.warn('Pedido seguirá pelo WhatsApp, mas não foi registrado no sistema:', error);
       toast({
         title: 'Abrindo WhatsApp',
         description: 'Não consegui registrar no sistema agora, mas seu pedido será enviado pelo WhatsApp.',
       });
     }
 
+    setSubmitting(false);
     clearCart();
     setStep('cart');
     setCustomerData({
@@ -548,41 +340,36 @@ export function CartModal({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="neighborhood">Bairro *</Label>
-                  {deliveryZones.length > 0 ? (
-                    <Select value={customerData.neighborhood} onValueChange={handleNeighborhoodChange}>
-                      <SelectTrigger id="neighborhood" aria-label="Bairro">
-                        <SelectValue placeholder="Selecione o bairro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {deliveryZones.map((zone) => (
-                          <SelectItem key={zone.id} value={zone.bairro}>
-                            {getZoneFeeLabel(zone)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <Select value={customerData.neighborhood} onValueChange={handleNeighborhoodChange} disabled={deliveryZones.length === 0}>
+                    <SelectTrigger id="neighborhood" aria-label="Bairro">
+                      <SelectValue placeholder={deliveryZonesLoading && deliveryZones.length === 0 ? 'Carregando bairros...' : 'Selecione o bairro'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deliveryZones.map((zone) => (
+                        <SelectItem key={zone.id} value={zone.bairro}>
+                          {zone.bairro} — {Number(zone.taxa ?? 0) === 0 ? 'entrega grátis' : formatCurrency(Number(zone.taxa ?? 0))}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {deliveryZonesError ? (
+                    <p className="text-xs text-destructive">
+                      Não consegui carregar os bairros atendidos.{' '}
+                      <button type="button" className="font-bold underline" onClick={() => setDeliveryZonesAttempt((n) => n + 1)}>
+                        Tentar de novo
+                      </button>
+                    </p>
+                  ) : noDeliveryZones ? (
+                    <p className="text-xs text-destructive">No momento não há bairros com entrega disponível. Fale conosco pelo WhatsApp.</p>
                   ) : (
-                    <Input
-                      id="neighborhood"
-                      name="neighborhood"
-                      type="text"
-                      value={customerData.neighborhood}
-                      onChange={handleInputChange}
-                      placeholder={deliveryZonesLoading ? 'Carregando bairros...' : 'Seu bairro'}
-                      disabled={deliveryZonesLoading}
-                    />
+                    <p className="text-xs text-muted-foreground">
+                      {deliveryZonesLoading && deliveryZones.length === 0
+                        ? 'Carregando bairros atendidos...'
+                        : selectedDeliveryZone
+                          ? `Taxa de entrega para ${selectedDeliveryZone.bairro}: ${deliveryFeeSummaryLabel}`
+                          : 'Entregamos apenas nos bairros da lista.'}
+                    </p>
                   )}
-                  <p className={`text-xs ${deliveryUnavailable ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {deliveryZonesLoading
-                      ? 'Carregando bairros atendidos...'
-                      : deliveryZonesError
-                        ? 'Não consegui carregar a lista. Informe o bairro manualmente.'
-                        : deliveryUnavailable
-                            ? (deliveryQuote.motivo_indisponivel ?? 'Hoje não há entrega normal para este bairro.')
-                            : hasCheckedDelivery && getConfirmedDeliveryFee(deliveryQuote) === null
-                              ? 'Taxa de entrega será confirmada pelo WhatsApp.'
-                            : 'Informe o bairro para finalizar o pedido.'}
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="complement">Ponto de referência *</Label>
@@ -628,7 +415,7 @@ export function CartModal({
                 {step === 'checkout' ? (
                   <p className="text-xs font-bold text-muted-foreground">Entrega: {deliveryFeeSummaryLabel}</p>
                 ) : null}
-                <span className="font-display text-3xl font-black text-gold-ink">{orderTotalSummaryLabel}</span>
+                <span className="font-display text-3xl font-black text-gold-ink">{formatCurrency(step === 'checkout' ? orderTotal : totalPrice)}</span>
               </div>
             </div>
 
@@ -643,7 +430,7 @@ export function CartModal({
                   size="lg"
                   className="w-full rounded-full font-black"
                   onClick={handleSubmitOrder}
-                  disabled={submitting || deliveryFeeLoading || deliveryUnavailable}
+                  disabled={submitting || !selectedDeliveryZone}
                 >
                   {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageCircle className="mr-2 h-5 w-5" />}
                   {submitting ? 'Enviando...' : 'Enviar pedido no WhatsApp'}

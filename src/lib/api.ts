@@ -85,8 +85,9 @@ export async function requestJson<T>(
   const rawBody = await response.text();
 
   if (!response.ok) {
-    throw new Error(
-      rawBody || `Request failed with status ${response.status} (${response.url || buildN8nUrl(path)})`
+    throw Object.assign(
+      new Error(rawBody || `Request failed with status ${response.status} (${response.url || buildN8nUrl(path)})`),
+      { status: response.status }
     );
   }
 
@@ -107,6 +108,12 @@ export async function requestJson<T>(
       `O webhook respondeu em formato invalido em ${response.url || buildN8nUrl(path)}: ${rawBody.slice(0, 200)}.`
     );
   }
+}
+
+// Status HTTP de um erro lançado por requestJson (undefined = sem resposta, ex.: offline).
+export function getApiErrorStatus(error: unknown) {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === 'number' ? status : undefined;
 }
 
 // requestJson lança o corpo da resposta como mensagem; quando é o envelope

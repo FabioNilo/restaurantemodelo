@@ -57,7 +57,7 @@ navegador ──► fotos direto do bucket (leitura pública, sem passar pela Ve
 - **Login**: senha com bcrypt na tabela `usuarios_admin` e token JWT (12 h) assinado com `SESSION_SECRET`. Trocar a senha encerra as sessões abertas em outros aparelhos.
 - **Cache**: o catálogo e o status do site ficam 30 s no cache da CDN da Vercel. Uma edição no admin leva **até ~1 min** para aparecer para todos os visitantes.
 - **Formas de pagamento em todo o site**: só **Pix, Débito e Crédito**, sem dinheiro e sem troco (`server/pagamentos.ts` e `src/lib/pagamentos.ts`).
-- **Ainda não existem**: taxas de entrega por bairro (no delivery a taxa é "a combinar" e a equipe informa ao dar baixa) e cadastro de gestores pela tela (use `npm run admin:password`).
+- **Ainda não existe**: cadastro de gestores pela tela (use `npm run admin:password`).
 - **Acesso ao painel**: não há mais botão "Admin" no site. O painel fica em `/auth` (salve nos favoritos), e o `robots.txt` pede aos buscadores para não indexar `/auth`, `/admin` e `/api/`.
 
 ## Painel administrativo (`/admin`)
@@ -73,7 +73,7 @@ Mesma estrutura do painel do `plataforma-restaurantes`: **menu lateral** (no cel
 | **Cardápio** | produtos, fotos, opções e categorias (o gestor só ajusta o estoque) | ✔ | estoque |
 | **Métricas** | vendas, pedidos, ticket médio, por canal, vendas por dia e mais vendidos (hoje, 7 ou 30 dias) | ✔ | — |
 | **Desempenho** | ranking por produto, em alta e em queda, e produtos parados (7, 30 ou 90 dias) | ✔ | — |
-| **Configurações** | WhatsApp, horário e credenciais | ✔ | — |
+| **Configurações** | WhatsApp, horário, **bairros e taxas de entrega** e credenciais | ✔ | — |
 
 Mesas e Delivery se atualizam sozinhos, a cada 10 e 15 segundos, só com a aba visível. Clique em **"Ativar som"** ao abrir: o navegador só toca o bipe de pedido novo depois de um clique. O título da aba também mostra "(2) Novos pedidos".
 
@@ -112,7 +112,16 @@ painel (/admin/mesas e /admin/mesas/:id) ── consulta a cada 10 s ───�
 
 O pedido feito pelo site é **gravado no banco** (`pedidos_delivery`, com o preço recalculado no servidor) e o WhatsApp continua abrindo com a mensagem e o **link de acompanhamento** (`/pedido/:id?token=`).
 - No painel (**Delivery**), a equipe leva o pedido por Recebido → Em preparo → Saiu para entrega e clica em **Marcar entregue**.
-- Ao marcar como entregue, confirma a forma de pagamento (pré-marcada com a escolha do cliente) e a taxa de entrega. Nesse momento o valor **entra no caixa**.
+- Ao marcar como entregue, confirma a forma de pagamento (pré-marcada com a escolha do cliente) e a taxa de entrega (pré-preenchida com a do bairro, pode ajustar). Nesse momento o valor **entra no caixa**.
+
+### Bairros e taxas de entrega
+
+- Cadastro em **Configurações → Bairros e taxas de entrega** (tabela `bairros`, migração `004`): nome e **taxa única** por bairro.
+- No carrinho, o **bairro é obrigatório e escolhido numa lista** (só os ativos, com a taxa ao lado). A taxa é somada ao total na hora e vai na mensagem do WhatsApp.
+- **Bairro fora da lista não pode pedir.** A API confere de novo: recusa bairro não cadastrado ou pausado e usa a taxa do cadastro, nunca a do navegador.
+- **Pausar** (interruptor Ativo/Pausado) tira o bairro do carrinho sem apagar o cadastro. Sem nenhum bairro ativo, o site não aceita delivery.
+- O pedido guarda nome e taxa do bairro: mudar a taxa ou excluir o bairro depois não altera pedidos antigos.
+- A taxa aparece no cartão do pedido em **Delivery**, no cupom impresso (`ENTREGA:`), na página de acompanhamento e, **separada dos itens**, no **Caixa** e no Excel (Resumo: "Vendas (itens)" e "Taxas de entrega"; Movimentações: colunas Itens / Taxa de entrega / Valor; Por dia: "Taxas de entrega (incluídas)").
 - O site aceita no máximo 5 pedidos por telefone a cada 10 minutos.
 
 ### Caixa e Excel
