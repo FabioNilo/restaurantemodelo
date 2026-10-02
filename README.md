@@ -21,8 +21,13 @@ Cardápio digital + pedido via WhatsApp + painel admin (dados e fotos no Neon, h
 
 ## Cardápio
 
-- Transcrito de `docs/Nosso Bistro Café - Delivery.pdf` para `src/data/cardapio.ts`: 14 categorias, na mesma ordem do PDF.
-- Itens com vários sabores ou tamanhos viram **um produto com opções** (campo `tamanhos`): Picolé, Mini sorvete, Polpa de fruta, Licor artesanal, Biscoito caseiro, Água, refrigerantes por marca, Munguzá, Bolo no pote e Morango cravejado.
+- Vem da planilha do sistema de caixa, `docs/produtos.xlsx` (exportada em 02/10/2026), para `src/data/cardapio.ts`. São 18 categorias e 154 produtos. Destes, 82 estão ativos no site e o resto está indisponível, como no caixa.
+  - Os nomes foram normalizados: maiúsculas, acentos, abreviações ("C/" → "com", "LT" → "lata", "UND" → "unidade") e erros de digitação ("ciciliano", "chease", "aimpim").
+  - Cada item tem um comentário `// pdv:` com os códigos da planilha que ele representa.
+  - Itens com ATIVO = "Nao" entram como **indisponíveis**: não aparecem no site, e o dono liga no admin quando voltarem.
+  - Ficaram de fora a categoria "ARQUIVO MORTO" e 5 lançamentos internos de R$ 0 (cortesias, "Delivery grátis", desconto Ritz, "Morango coberto").
+  - Item repetido com dois preços: vale o código de delivery (`178319…`), que bate com o PDF de delivery.
+- Itens com vários sabores ou tamanhos viram **um produto com opções** (campo `tamanhos`): Picolé, Mini sorvete, Suco, Polpa de fruta, Licor artesanal, Biscoito caseiro, Água, refrigerantes por marca, Munguzá, Bolo no pote, Morango cravejado, Cocada, Pão e os salgados com sabores (Quiche, Empada, Esfirra...).
   - Até 3 opções aparecem como botões no card.
   - Mais que isso vira uma lista suspensa "Escolha o sabor".
 - Sem fotos por enquanto: cada card mostra um fallback verde com louros e o ícone da categoria. O dono sobe as fotos pelo admin, e elas vão para o Neon Object Storage.
@@ -204,6 +209,19 @@ Sem `VITE_API_BASE_URL` (por exemplo, sem `.env.local`), o site roda no **modo d
 
 Todos usam o `.env.local` por padrão. Para a produção, prefixe com `ENV_FILE=.env.vercel-production.local`.
 
+## Atendimento pelo WhatsApp (n8n)
+
+Um agente de IA atende pelo WhatsApp (Evolution API). Ele consulta o cardápio no Neon, monta o carrinho do cliente e registra o pedido de delivery. Segue a mesma estrutura do workflow *Doces Sonhos / WhatsApp ChatGPT*.
+
+- **Workflows no n8n** (fonte em `docs/n8n/*.sdk.js`):
+  - *Nosso Bistrô / Atendimento WhatsApp* (`4iYskh7qat3oXkJg`): webhook da Evolution → normaliza → ignora mensagens próprias e de grupo → contexto do Neon → agente (gpt-5-mini) → responde pela mesma instância. Tem também um *Chat de teste*.
+  - *Nosso Bistrô / Fechar pedido (tool)* (`enxN9gBa9tyRuZG9`): ferramenta `fechar_pedido` do agente. Lê o carrinho, faz o `POST /api/massas/pedidos` e limpa o carrinho se der certo.
+- **Banco**: migration `005_atendimento_whatsapp.sql`, schema `atendimento`.
+  - Tabela `carrinhos`: um carrinho por telefone. Carrinho parado há mais de 12 h é descartado.
+  - Funções `contexto`, `categorias`, `buscar_cardapio` (sem acento), `ver_carrinho`, `adicionar_item`, `remover_item`, `limpar_carrinho` e `itens_para_pedido`. Elas repetem as regras da API: só produto disponível com estoque, opção obrigatória e horário de `isDeliveryClosed`.
+- **Usuário do n8n**: `n8n_atendimento`, criado só no branch *production*. Ele só executa as funções do schema `atendimento` e não lê pedidos, pagamentos nem usuários. Os dados de conexão estão em `.n8n-neon.local`, que não vai para o git.
+- **O pedido passa pela API**, nunca por SQL direto: preços recalculados, bairro validado e link de acompanhamento gerado. A API não confere o horário, então quem confere é o agente, pelo contexto.
+
 ## Levando a API para a VPS (quando quiser)
 
 O front não muda. Na VPS:
@@ -215,26 +233,22 @@ O site estático pode continuar na Vercel ou ir para a VPS. Se o site e a API fi
 
 ## Pendências com o cliente
 
-Confirmar antes de publicar. Os itens estão marcados com **"(a confirmar)"** no próprio cardápio, visíveis no site e no admin.
+Confirmar com o dono. A planilha do caixa resolveu os nomes cortados do PDF (sabores de picolé e mini sorvete, licores, "Misto quente com ovo", "Bolo caseiro com cobertura" etc.). Ficaram estas dúvidas:
 
-1. **Nomes cortados no PDF**:
-   - Promoção do dia: "2 Fatias torta pro...", "Promoção 2 fatias ...", "Salgado promoção...".
-   - Salgados: "Misto quente com ...".
-   - Cafés: "CAPPUCCINO ALP..." (Alpino?), "KITKAT", "MOK. DOIS FRADES", "DOIS FRADES".
-   - Refrigerantes: os dois tamanhos de Coca-Cola Original (R$ 10 e R$ 12) e a 2ª opção de Guaraná Antarctica.
-   - Bolos caseiros: "Bolo caseiro com ...".
-   - Biscoitos: "LECINHO DE GOI...", "ROSQUINHA DE C...".
-   - Picolés: os 15 sabores, dos quais só se lê a inicial.
-   - Mini sorvete: os 5 sabores.
-   - Doces: "Copo pequeno mo...", "Morango cravejad..." (R$ 25).
-   - Sobremesas: as duas opções de "Bolo no pote Tam...".
-   - Licores: "Licor artesanal ma...", "me...", "ta...".
-   - Bomboniere: "Salgadinhos s...".
-2. **Sem preço no PDF**:
-   - "Cenoura" (bolos caseiros) está cadastrado como indisponível.
-   - "POLPA FRUTAS 1KG" aparece no PDF sem preço, acima de "POLPA DE MANGA 1KG" (R$ 15). O site tem só "Polpa de fruta 1 kg" com a opção Manga.
-3. **Horário de funcionamento**: o padrão é 07h–19h (placeholder, editável no admin).
-4. **Endereço**: o rodapé mostra "Endereço a confirmar" (`BRAND.address` em `src/lib/brand.ts`).
-5. **Logo original** em alta resolução ou vetor, sem o anel do Instagram.
-6. **Fotos reais** dos produtos e do ambiente, para substituir o fallback e a foto do hero.
-7. **Promoção do dia** no hero: o texto "2 fatias de torta por R$ 30" está fixo em `HeroSection.tsx`.
+1. **Preços repetidos na planilha** (escolhido o código de delivery `178319…`, ou o preço do PDF de delivery):
+   - Coca-Cola 1 L: R$ 10 (`1783190179`) ou R$ 12 (`7894900027044`)? **Ficou R$ 10.** Nos outros itens repetidos, o preço de delivery é o maior.
+   - Cappuccino 11/10, Cappuccino Alpino 12/11, KitKat 11/10, Mocha Dois Frades 11/10, Schweppes 7/6: ficou o maior, o de delivery.
+   - Torta promoção: R$ 14 ou R$ 15 (os dois ativos)? Ficou R$ 14, o preço do PDF.
+   - Itens inativos com dois preços: Fatia Matilda 10/17 (ficou 10, que parece erro), Fatia de pudim 15/17, Fatia de camarão 20/17, Fatia de coco com abacaxi 17/20.
+2. **Nomes a confirmar**:
+   - "Manteiga 200g" está em Bolos caseiros: foi lido como *Bolo de manteiga 200 g*.
+   - "MELITA TRADICIONAL" (R$ 16,50) em Cafés: é um café coado ou o pacote de pó?
+   - "KITKAT" e "ALPINO" em Cafés: ficaram com esses nomes. Seriam bebidas com chocolate?
+   - "Morango cravejado" (R$ 14) e "Morango cravejado 2" (R$ 25): qual é a diferença? No site estão como *Tradicional* e *Maior (a confirmar)*.
+   - "PASTEL DA VOVO INT PEITO P" foi lido como *integral de peito de peru*.
+3. **Itens de balcão no delivery**: pão a R$ 0,50, bala a R$ 0,25, pirulito a R$ 0,50 e Mercearia (manteiga e leite) estão ativos no caixa e por isso aparecem no site. O dono pode desligar no admin o que não quer vender por delivery.
+4. **Horário de funcionamento**: o padrão é 07h–19h (placeholder, editável no admin).
+5. **Endereço**: o rodapé mostra "Endereço a confirmar" (`BRAND.address` em `src/lib/brand.ts`).
+6. **Logo original** em alta resolução ou vetor, sem o anel do Instagram.
+7. **Fotos reais** dos produtos e do ambiente, para substituir o fallback e a foto do hero.
+8. **Promoção do dia** no hero: o texto "2 fatias de torta por R$ 30" está fixo em `HeroSection.tsx`.

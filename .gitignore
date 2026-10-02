@@ -31,3 +31,6 @@ data/supabase-export/*.json
 *.njsproj
 *.sln
 *.sw?
+
+# Manual com a senha inicial do admin: não commitar
+docs/Manual-*.pdf
