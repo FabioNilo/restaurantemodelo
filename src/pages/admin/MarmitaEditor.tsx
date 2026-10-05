@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from '@/lib/api';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ShieldAlert } from 'lucide-react';
@@ -10,7 +11,7 @@ import { useMarmitaDetailQuery, useMarmitasAdmin } from '@/hooks/useMarmitasAdmi
 import type { Marmita } from '@/types/product';
 
 // Mostra o motivo devolvido pela API (ex.: formato de imagem, armazenamento fora do ar).
-const errorMessage = (error: unknown) => (error instanceof Error && error.message ? error.message : 'Tente novamente.');
+const errorMessage = (error: unknown) => getApiErrorMessage(error, 'Tente novamente.');
 
 export default function MarmitaEditor() {
   const { loading: authLoading, permissions } = useAuth();
