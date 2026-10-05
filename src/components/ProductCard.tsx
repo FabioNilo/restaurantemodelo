@@ -68,18 +68,29 @@ export function ProductCard({ marmita, categoriaNome, index }: ProductCardProps)
       className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-primary/25 bg-card shadow-card transition-all duration-500 hover:-translate-y-1 hover:border-primary/50 hover:shadow-card-hover animate-fade-in-up"
       style={{ animationDelay: `${index * 0.06}s` }}
     >
-      <div className="relative h-44 overflow-hidden bg-muted">
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted sm:aspect-[16/11]">
         {showImage ? (
-          <img
-            src={imageSources.src}
-            srcSet={imageSources.srcSet}
-            sizes={imageSources.sizes}
-            alt={marmita.nome}
-            loading="lazy"
-            decoding="async"
-            onError={() => setImageFailed(true)}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
+          <>
+            {/* Fundo: a própria foto desfocada preenche o card; a foto inteira (sem corte) fica por cima. */}
+            <img
+              src={imageSources.src}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-xl"
+            />
+            <img
+              src={imageSources.src}
+              srcSet={imageSources.srcSet}
+              sizes={imageSources.sizes}
+              alt={marmita.nome}
+              loading="lazy"
+              decoding="async"
+              onError={() => setImageFailed(true)}
+              className="relative h-full w-full object-contain transition-transform duration-700 group-hover:scale-105"
+            />
+          </>
         ) : (
           <ProductImageFallback
             name={marmita.nome}
