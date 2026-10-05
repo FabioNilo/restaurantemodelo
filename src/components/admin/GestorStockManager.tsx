@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, PackageCheck, RefreshCw, Save } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, PackageCheck, RefreshCw, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { MarmitaAdminListItem } from '@/types/product';
 import { useToast } from '@/hooks/use-toast';
 import { useMarmitasAdmin } from '@/hooks/useMarmitasAdmin';
 import { DEFAULT_PAGE_SIZE } from '@/lib/query-client';
+import { fetchMarmitasAdminPageN8n } from '@/features/integrations/marmitas-api';
+import { calcularLucro } from '@/lib/estoque-lucro';
 import { getAvailabilityFromStock, normalizeStock } from '@/lib/stock-rules';
 
 function formatCurrency(value: number | null | undefined) {
@@ -22,7 +25,8 @@ export function GestorStockManager() {
   const [page, setPage] = useState(1);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
-  const { marmitas, totalCount, loading, error, refetch, updateMarmitaStock } = useMarmitasAdmin(page);
+  const [exporting, setExporting] = useState(false);
+  const { marmitas, categorias, totalCount, loading, error, refetch, updateMarmitaStock } = useMarmitasAdmin(page);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
 
@@ -74,6 +78,32 @@ export function GestorStockManager() {
     });
   };
 
+  // A planilha leva todos os produtos, não só a página que está na tela.
+  const handleExport = async () => {
+    setExporting(true);
+
+    try {
+      const produtos: MarmitaAdminListItem[] = [];
+      const pageSize = 200;
+
+      for (let current = 1; ; current += 1) {
+        const result = await fetchMarmitasAdminPageN8n(current, pageSize);
+        produtos.push(...(result.data ?? []));
+
+        if (produtos.length >= result.count || (result.data ?? []).length < pageSize) {
+          break;
+        }
+      }
+
+      const { gerarExcelEstoque } = await import('@/lib/exportar-excel');
+      await gerarExcelEstoque(produtos, categorias);
+    } catch {
+      toast({ title: 'Erro ao exportar', description: 'Não foi possível gerar a planilha. Tente novamente.', variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -105,10 +135,16 @@ export function GestorStockManager() {
             Atualize apenas a quantidade disponível. Estoque zero deixa o produto indisponível na página inicial.
           </CardDescription>
         </div>
-        <Button variant="outline" onClick={refetch} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={exporting} className="gap-2">
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Exportar planilha
+          </Button>
+          <Button variant="outline" onClick={refetch} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Atualizar
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {marmitas.length === 0 ? (
@@ -122,7 +158,9 @@ export function GestorStockManager() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Produto</TableHead>
-                    <TableHead className="text-right">Preço</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
+                    <TableHead className="text-right">Venda</TableHead>
+                    <TableHead className="text-right">Lucro</TableHead>
                     <TableHead className="text-center">Estoque</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">Ação</TableHead>
@@ -134,6 +172,7 @@ export function GestorStockManager() {
                     const estoque = normalizeStock(draftValue);
                     const isAvailable = getAvailabilityFromStock(estoque) && item.disponivel !== false;
                     const changed = Number(item.estoque ?? 0) !== estoque;
+                    const lucro = calcularLucro(Number(item.preco), item.custo);
 
                     return (
                       <TableRow key={item.id}>
@@ -141,8 +180,21 @@ export function GestorStockManager() {
                           <div className="font-medium">{item.nome}</div>
                           <div className="text-xs text-muted-foreground">Edição limitada ao estoque</div>
                         </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {item.custo === null || item.custo === undefined ? '—' : formatCurrency(item.custo)}
+                        </TableCell>
                         <TableCell className="text-right font-semibold text-gold-ink">
                           {formatCurrency(item.preco)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {lucro.lucro === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className={lucro.lucro < 0 ? 'font-semibold text-destructive' : ''}>
+                              {formatCurrency(lucro.lucro)}
+                              <span className="ml-1 text-xs text-muted-foreground">({String(lucro.margem ?? 0).replace('.', ',')}%)</span>
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="min-w-32 text-center">
                           <Input

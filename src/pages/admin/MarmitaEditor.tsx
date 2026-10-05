@@ -9,6 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useMarmitaDetailQuery, useMarmitasAdmin } from '@/hooks/useMarmitasAdmin';
 import type { Marmita } from '@/types/product';
 
+// Mostra o motivo devolvido pela API (ex.: formato de imagem, armazenamento fora do ar).
+const errorMessage = (error: unknown) => (error instanceof Error && error.message ? error.message : 'Tente novamente.');
+
 export default function MarmitaEditor() {
   const { loading: authLoading, permissions } = useAuth();
   const { marmitaId } = useParams();
@@ -44,7 +47,7 @@ export default function MarmitaEditor() {
         return true;
       }
 
-      toast({ title: 'Erro ao atualizar', description: 'Tente novamente.', variant: 'destructive' });
+      toast({ title: 'Erro ao atualizar', description: errorMessage(result.error), variant: 'destructive' });
       return false;
     }
 
@@ -56,7 +59,7 @@ export default function MarmitaEditor() {
       return true;
     }
 
-    toast({ title: 'Erro ao criar', description: 'Tente novamente.', variant: 'destructive' });
+    toast({ title: 'Erro ao criar', description: errorMessage(result.error), variant: 'destructive' });
     return false;
   };
 

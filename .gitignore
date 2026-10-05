@@ -34,3 +34,6 @@ data/supabase-export/*.json
 
 # Manual com a senha inicial do admin: não commitar
 docs/Manual-*.pdf
+
+# MCP (pode conter tokens)
+.mcp.json

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { DecimalInput } from '@/components/admin/DecimalInput';
+import { calcularLucro } from '@/lib/estoque-lucro';
 import { getProductOptionLabels } from '@/lib/product-category';
 import { cn } from '@/lib/utils';
 import { Expand, ImageIcon, Loader2, Plus, Trash2, X } from 'lucide-react';
@@ -21,6 +22,7 @@ interface MarmitaFormData {
   nome: string;
   descricao: string;
   preco: number;
+  custo: number | null;
   estoque: number;
   disponivel: boolean;
   categoria_id: string | null;
@@ -40,6 +42,8 @@ interface MarmitaFormProps {
   onCancel?: () => void;
   onSave: (data: MarmitaFormData) => Promise<boolean>;
 }
+
+const formatBRL = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 interface PreviewImage {
   label: string;
@@ -123,7 +127,8 @@ async function compressImageFile(file: File) {
     return fallbackDataUrl;
   }
 
-  if (file.size <= MAX_DATABASE_IMAGE_BYTES) {
+  // O servidor só aceita WEBP, JPG e PNG: um GIF pequeno não pode seguir como está.
+  if (file.size <= MAX_DATABASE_IMAGE_BYTES && /^data:image\/(webp|jpeg|png);/i.test(originalDataUrl)) {
     return originalDataUrl;
   }
 
@@ -134,6 +139,7 @@ const getInitialFormData = (marmita?: Marmita | null): MarmitaFormData => ({
   nome: marmita?.nome || '',
   descricao: marmita?.descricao || '',
   preco: marmita?.preco || 0,
+  custo: marmita?.custo ?? null,
   estoque: marmita?.estoque || 0,
   disponivel: marmita?.disponivel ?? true,
   categoria_id: marmita?.categoria_id || null,
@@ -161,6 +167,7 @@ export function MarmitaForm({
   const [imageProcessing, setImageProcessing] = useState(false);
   const selectedImageSrc = isDisplayableImage(formData.imagem_url) ? formData.imagem_url : null;
   const isDialogLayout = layout === 'dialog';
+  const profit = calcularLucro(formData.preco, formData.custo);
   const selectedCategoria = categorias.find((categoria) => categoria.id === formData.categoria_id);
   const categoryContext = selectedCategoria ?? (formData.categoria_id ? { id: formData.categoria_id, nome: formData.categoria_id } : null);
   const optionLabels = getProductOptionLabels(categoryContext);
@@ -212,6 +219,11 @@ export function MarmitaForm({
 
     if (formData.preco <= 0) {
       alert('O preço deve ser maior que zero.');
+      return;
+    }
+
+    if (formData.custo !== null && formData.custo < 0) {
+      alert('O custo não pode ser negativo.');
       return;
     }
 
@@ -352,6 +364,15 @@ export function MarmitaForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="custo">Custo (R$)</Label>
+                <DecimalInput
+                  id="custo"
+                  value={formData.custo ?? 0}
+                  onValueChange={(custo) => setFormData((prev) => ({ ...prev, custo: custo > 0 ? custo : null }))}
+                />
+                <p className="text-xs text-muted-foreground">Opcional. Usado só para calcular o lucro.</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="preco">Preço (R$) *</Label>
                 <DecimalInput
                   id="preco"
@@ -375,6 +396,20 @@ export function MarmitaForm({
                 />
               </div>
             </div>
+
+            {formData.custo !== null && formData.preco > 0 && (
+              <div
+                className={cn(
+                  'rounded-lg border p-3 text-sm',
+                  profit.lucro !== null && profit.lucro < 0 ? 'border-destructive/50 bg-destructive/10 text-destructive' : 'bg-muted/30'
+                )}
+                role="status"
+              >
+                {profit.lucro !== null && profit.lucro < 0
+                  ? `Atenção: o preço de venda está abaixo do custo (prejuízo de ${formatBRL(-profit.lucro)} por unidade).`
+                  : `Lucro de ${formatBRL(profit.lucro ?? 0)} por unidade (margem de ${String(profit.margem ?? 0).replace('.', ',')}%).`}
+              </div>
+            )}
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">

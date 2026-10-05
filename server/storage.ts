@@ -89,21 +89,28 @@ function getClient() {
 
 export async function putProductImage(dataUrl: string, produtoId: string) {
   const image = parseImageDataUrl(dataUrl);
-  const { client: s3, config } = getClient();
   const key = buildProductImageKey(produtoId, image.extension);
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.bucket,
-      Key: key,
-      Body: image.bytes,
-      ContentType: image.mime,
-      // A chave muda a cada upload, então a foto pode ficar em cache "para sempre".
-      CacheControl: 'public, max-age=31536000, immutable',
-    })
-  );
+  try {
+    const { client: s3, config } = getClient();
 
-  return { key, url: buildPublicUrl(config.endpoint, config.bucket, key) };
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
+        Body: image.bytes,
+        ContentType: image.mime,
+        // A chave muda a cada upload, então a foto pode ficar em cache "para sempre".
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    );
+
+    return { key, url: buildPublicUrl(config.endpoint, config.bucket, key) };
+  } catch (error) {
+    // Variável NEON_STORAGE_* ausente, credencial errada, bucket inexistente ou rede.
+    console.error('Falha ao enviar a imagem ao armazenamento:', error);
+    throw new ApiError(502, 'Não foi possível enviar a imagem ao armazenamento. O produto não foi salvo; tente novamente ou salve sem foto.');
+  }
 }
 
 // Apagar a foto antiga não deve derrubar o salvamento do produto.

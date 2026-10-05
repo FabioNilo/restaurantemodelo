@@ -5,6 +5,8 @@ export interface Marmita {
   descricao: string | null;
   categoria_id: string | null;
   preco: number;
+  // Só nas telas do admin; o catálogo público nunca recebe o custo.
+  custo?: number | null;
   estoque: number | null;
   disponivel: boolean | null;
   imagem_url: string | null;
@@ -32,6 +34,7 @@ export interface MarmitaAdminListItem {
   nome: string;
   categoria_id: string | null;
   preco: number;
+  custo?: number | null;
   estoque: number | null;
   disponivel: boolean | null;
   imagem_url: string | null;

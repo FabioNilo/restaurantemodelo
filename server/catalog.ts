@@ -14,6 +14,7 @@ interface ProdutoRow {
   nome: string;
   descricao: string | null;
   preco: string | number;
+  custo: string | number | null;
   estoque: number;
   disponivel: boolean;
   imagem_url: string | null;
@@ -88,7 +89,7 @@ function toConfiguracoes(row: ConfiguracoesRow): ConfiguracoesSite {
 }
 
 const PRODUTO_COLUMNS =
-  'id, categoria_id, nome, descricao, preco, estoque, disponivel, imagem_url, imagem_key, tamanhos, created_at, updated_at';
+  'id, categoria_id, nome, descricao, preco, custo, estoque, disponivel, imagem_url, imagem_key, tamanhos, created_at, updated_at';
 
 // --- Validação dos payloads do admin ---
 
@@ -104,6 +105,8 @@ const produtoBaseSchema = z.object({
   descricao: z.string().trim().max(500).nullish(),
   categoria_id: z.string().trim().min(1).nullish(),
   preco: z.coerce.number().min(0),
+  // Opcional: vazio/null = sem custo informado.
+  custo: z.preprocess((value) => (value === '' ? null : value), z.coerce.number().min(0, 'O custo não pode ser negativo.').nullish()),
   estoque: z.coerce.number().int().min(0).default(0),
   disponivel: z.boolean().default(true),
   imagem_url: z.string().nullish(),
@@ -198,6 +201,7 @@ export async function listProdutos(page: number, pageSize: number) {
       nome: produto.nome,
       categoria_id: produto.categoria_id,
       preco: produto.preco,
+      custo: row.custo === null ? null : Number(row.custo),
       estoque: produto.estoque,
       disponivel: produto.disponivel,
       imagem_url: produto.imagem_url,
@@ -219,7 +223,8 @@ async function getProdutoRow(id: string) {
 }
 
 export async function getProduto(id: string) {
-  return toMarmita(await getProdutoRow(id));
+  const row = await getProdutoRow(id);
+  return { ...toMarmita(row), custo: row.custo === null ? null : Number(row.custo) };
 }
 
 export async function createProduto(input: z.infer<typeof produtoCreateSchema>) {
@@ -232,14 +237,15 @@ export async function createProduto(input: z.infer<typeof produtoCreateSchema>) 
 
   try {
     await query(
-      `insert into produtos (id, categoria_id, nome, descricao, preco, estoque, disponivel, imagem_url, imagem_key, tamanhos)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+      `insert into produtos (id, categoria_id, nome, descricao, preco, custo, estoque, disponivel, imagem_url, imagem_key, tamanhos)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
       [
         id,
         input.categoria_id ?? null,
         input.nome,
         input.descricao || null,
         input.preco,
+        input.custo ?? null,
         input.estoque,
         input.disponivel,
         image.url,

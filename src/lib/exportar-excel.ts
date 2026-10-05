@@ -1,4 +1,6 @@
 import type { MovimentoCaixa } from '@/features/integrations/painel-contracts';
+import { CABECALHO_ESTOQUE, linhasEstoque, nomeArquivoEstoque } from '@/lib/estoque-lucro';
+import type { Categoria, MarmitaAdminListItem } from '@/types/product';
 import { nomeArquivoFluxoCaixa, planilhasFluxoCaixa } from '@/lib/fluxo-caixa';
 
 const MOEDA = '"R$" #,##0.00';
@@ -63,6 +65,66 @@ export async function gerarExcelFluxoCaixa(movimentos: MovimentoCaixa[], periodo
   const link = document.createElement('a');
   link.href = url;
   link.download = nomeArquivoFluxoCaixa(periodo);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Planilha de estoque com custo, venda, lucro e margem já calculados.
+export async function gerarExcelEstoque(produtos: MarmitaAdminListItem[], categorias: Pick<Categoria, 'id' | 'nome'>[]) {
+  const { default: ExcelJS } = await import('exceljs');
+  const dados = linhasEstoque(produtos, categorias);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Nosso Bistrô Café';
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet('Estoque');
+  ws.columns = [{ width: 34 }, { width: 18 }, { width: 14 }, { width: 14 }, { width: 20 }, { width: 13 }, { width: 10 }, { width: 20 }, { width: 14 }];
+
+  const cabecalho = ws.addRow(CABECALHO_ESTOQUE);
+  cabecalho.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: VERDE } };
+  });
+
+  dados.linhas.forEach((linha) => {
+    const row = ws.addRow([
+      linha.produto,
+      linha.categoria,
+      linha.custo ?? 'Sem custo',
+      linha.preco,
+      linha.lucro ?? '',
+      linha.margem === null ? '' : linha.margem / 100,
+      linha.estoque,
+      linha.lucroEstoque ?? '',
+      linha.status,
+    ]);
+    // Venda abaixo do custo (prejuízo) em vermelho.
+    if (linha.lucro !== null && linha.lucro < 0) row.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true };
+  });
+
+  [3, 4, 5, 8].forEach((col) => (ws.getColumn(col).numFmt = MOEDA));
+  ws.getColumn(6).numFmt = '0.0%';
+
+  const total = ws.addRow(['Total', '', '', '', '', '', dados.totais.estoque, dados.totais.lucroEstoque, '']);
+  total.font = { bold: true };
+  total.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DOURADO } };
+
+  if (dados.semCusto > 0) {
+    ws.addRow([]);
+    ws.addRow([`${dados.semCusto} produto(s) sem custo informado ficam sem lucro e fora do total.`]).font = { italic: true };
+  }
+
+  ws.autoFilter = { from: 'A1', to: `I${Math.max(dados.linhas.length + 1, 1)}` };
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nomeArquivoEstoque();
   document.body.appendChild(link);
   link.click();
   link.remove();
