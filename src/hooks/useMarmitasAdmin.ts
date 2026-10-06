@@ -10,10 +10,12 @@ import {
   updateCategoriaN8n,
   updateMarmitaN8n,
   updateMarmitaStockN8n,
+  updateMarmitasLoteN8n,
+  updateMarmitasMassaN8n,
 } from '@/features/integrations/marmitas-api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/query-client';
 import { queryKeys } from '@/lib/query-keys';
-import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros } from '@/types/product';
+import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros, ProdutoLoteAlteracao } from '@/types/product';
 
 const ONE_MINUTE = 60 * 1000;
 
@@ -34,8 +36,8 @@ function sortMarmitasByName<T extends Pick<MarmitaAdminListItem, 'id' | 'nome'>>
   });
 }
 
-async function fetchMarmitasPage(page: number, filtros: MarmitaFiltros) {
-  const result = await fetchMarmitasAdminPageN8n(page, DEFAULT_PAGE_SIZE, filtros);
+async function fetchMarmitasPage(page: number, filtros: MarmitaFiltros, pageSize: number) {
+  const result = await fetchMarmitasAdminPageN8n(page, pageSize, filtros);
 
   return {
     ...result,
@@ -60,12 +62,12 @@ export function useMarmitaDetailQuery(marmitaId: string | null, enabled = true) 
   });
 }
 
-export function useMarmitasAdmin(page = 1, filtros: MarmitaFiltros = {}) {
+export function useMarmitasAdmin(page = 1, filtros: MarmitaFiltros = {}, pageSize = DEFAULT_PAGE_SIZE) {
   const queryClient = useQueryClient();
 
   const marmitasQuery = useQuery({
-    queryKey: queryKeys.admin.marmitasList(page, filtros),
-    queryFn: () => fetchMarmitasPage(page, filtros),
+    queryKey: [...queryKeys.admin.marmitasList(page, filtros), pageSize],
+    queryFn: () => fetchMarmitasPage(page, filtros, pageSize),
     staleTime: ONE_MINUTE,
     placeholderData: keepPreviousData,
   });
@@ -119,6 +121,16 @@ export function useMarmitasAdmin(page = 1, filtros: MarmitaFiltros = {}) {
         queryKey: queryKeys.admin.marmitaDetail(variables.id),
       });
     },
+  });
+
+  const loteMutation = useMutation({
+    mutationFn: (itens: ProdutoLoteAlteracao[]) => updateMarmitasLoteN8n(itens),
+    onSuccess: invalidateMarmitas,
+  });
+
+  const massaMutation = useMutation({
+    mutationFn: (input: { ids: string[]; disponivel?: boolean; categoria_id?: string }) => updateMarmitasMassaN8n(input),
+    onSuccess: invalidateMarmitas,
   });
 
   const deleteMarmitaMutation = useMutation({
@@ -178,6 +190,22 @@ export function useMarmitasAdmin(page = 1, filtros: MarmitaFiltros = {}) {
       try {
         await updateMarmitaStockMutation.mutateAsync({ id, estoque });
         return { success: true as const };
+      } catch (error) {
+        return { success: false as const, error };
+      }
+    },
+    updateMarmitasLote: async (itens: ProdutoLoteAlteracao[]) => {
+      try {
+        const result = await loteMutation.mutateAsync(itens);
+        return { success: true as const, atualizados: result.atualizados };
+      } catch (error) {
+        return { success: false as const, error };
+      }
+    },
+    updateMarmitasMassa: async (input: { ids: string[]; disponivel?: boolean; categoria_id?: string }) => {
+      try {
+        const result = await massaMutation.mutateAsync(input);
+        return { success: true as const, atualizados: result.atualizados };
       } catch (error) {
         return { success: false as const, error };
       }

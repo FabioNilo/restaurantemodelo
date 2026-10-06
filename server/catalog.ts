@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaListItem, ProdutoTamanho } from '../src/types/product.js';
 import type { ConfiguracoesSite } from '../src/lib/site-settings.js';
-import { query } from './db.js';
+import { query, transaction } from './db.js';
 import { ApiError } from './http.js';
 import { deleteProductImage, isDataImageUrl, putProductImage } from './storage.js';
 
@@ -188,10 +188,26 @@ export async function getPublicCatalog(): Promise<{ categorias: Array<Pick<Categ
 // Valor de categoria_id que filtra os produtos sem categoria.
 export const SEM_CATEGORIA = 'sem-categoria';
 
+// Até quantas unidades o estoque conta como "baixo" no filtro do admin.
+export const ESTOQUE_BAIXO = 5;
+
 export interface ProdutoFiltros {
   busca?: string;
   categoria_id?: string;
+  foto?: 'com' | 'sem';
+  disponibilidade?: 'disponivel' | 'indisponivel';
+  sem_custo?: boolean;
+  estoque?: 'baixo' | 'zerado';
 }
+
+export const produtoFiltrosSchema = z.object({
+  busca: z.string().trim().max(80).optional(),
+  categoria_id: z.string().trim().max(80).optional(),
+  foto: z.enum(['com', 'sem']).optional(),
+  disponibilidade: z.enum(['disponivel', 'indisponivel']).optional(),
+  sem_custo: z.boolean().optional(),
+  estoque: z.enum(['baixo', 'zerado']).optional(),
+});
 
 // WHERE do filtro do admin: busca por nome sem diferenciar acento/maiúscula, e categoria.
 export function buildProdutoFiltro(filtros: ProdutoFiltros) {
@@ -211,6 +227,15 @@ export function buildProdutoFiltro(filtros: ProdutoFiltros) {
     params.push(filtros.categoria_id);
     conditions.push(`categoria_id = $${params.length}`);
   }
+
+  // Filtros rápidos (chips) da lista de produtos.
+  if (filtros.foto === 'com') conditions.push("coalesce(imagem_url, '') <> ''");
+  if (filtros.foto === 'sem') conditions.push("coalesce(imagem_url, '') = ''");
+  if (filtros.disponibilidade === 'disponivel') conditions.push('disponivel');
+  if (filtros.disponibilidade === 'indisponivel') conditions.push('not disponivel');
+  if (filtros.sem_custo) conditions.push('custo is null');
+  if (filtros.estoque === 'zerado') conditions.push('estoque = 0');
+  if (filtros.estoque === 'baixo') conditions.push(`estoque between 1 and ${ESTOQUE_BAIXO}`);
 
   return { where: conditions.length > 0 ? `where ${conditions.join(' and ')}` : '', params };
 }
@@ -239,6 +264,7 @@ export async function listProdutos(page: number, pageSize: number, filtros: Prod
       estoque: produto.estoque,
       disponivel: produto.disponivel,
       imagem_url: produto.imagem_url,
+      tamanhos: produto.tamanhos,
       created_at: produto.created_at,
     };
   });
@@ -345,6 +371,103 @@ export async function updateProdutoEstoque(id: string, estoque: number) {
   }
 
   return { id, estoque, disponivel };
+}
+
+// --- Edição em lote (preço e custo) e ações em massa ---
+
+export const MAX_PRODUTOS_LOTE = 25;
+
+const precoSchema = z.coerce.number().positive('O preço deve ser maior que zero.').max(99999);
+
+export const produtosLoteSchema = z.object({
+  itens: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1),
+        preco: precoSchema.optional(),
+        // null = apagar o custo (fica "sem custo").
+        custo: z.coerce.number().min(0, 'O custo não pode ser negativo.').max(99999).nullable().optional(),
+        // Preço de cada opção (sabor/tamanho) pelo código; as que não vierem ficam como estão.
+        opcoes: z.array(z.object({ codigo: z.string().trim().min(1), preco: precoSchema })).max(60).optional(),
+      })
+    )
+    .min(1, 'Nenhuma alteração para salvar.')
+    .max(MAX_PRODUTOS_LOTE, `Salve no máximo ${MAX_PRODUTOS_LOTE} produtos por vez.`),
+});
+
+// Salva preços e custos de vários produtos numa transação: ou tudo grava, ou nada.
+export async function updateProdutosLote(input: z.infer<typeof produtosLoteSchema>) {
+  const ids = input.itens.map((item) => item.id);
+
+  if (new Set(ids).size !== ids.length) {
+    throw new ApiError(400, 'O mesmo produto apareceu duas vezes no lote.');
+  }
+
+  const atuais = new Map(
+    (await query<{ id: string; nome: string; tamanhos: ProdutoTamanho[] | null }>('select id, nome, tamanhos from produtos where id = any($1)', [ids])).map(
+      (row) => [row.id, row]
+    )
+  );
+
+  const updates = input.itens.map((item): [string, unknown[]] => {
+    const atual = atuais.get(item.id);
+
+    if (!atual) {
+      throw new ApiError(404, 'Um dos produtos não existe mais. Atualize a tela.');
+    }
+
+    const fields: Record<string, unknown> = { preco: item.preco, custo: item.custo };
+
+    if (item.opcoes?.length) {
+      const tamanhos = toTamanhos(atual.tamanhos);
+      const novos = new Map(item.opcoes.map((opcao) => [opcao.codigo, opcao.preco]));
+
+      for (const codigo of novos.keys()) {
+        if (!tamanhos.some((tamanho) => tamanho.codigo === codigo)) {
+          throw new ApiError(409, `Uma opção de ${atual.nome} mudou enquanto você editava. Atualize a tela.`);
+        }
+      }
+
+      fields.tamanhos = tamanhos.map((tamanho) => (novos.has(tamanho.codigo) ? { ...tamanho, preco: novos.get(tamanho.codigo) } : tamanho));
+    }
+
+    const { sets, values } = buildUpdate(fields, { tamanhos: '::jsonb' });
+
+    if (sets.length === 0) {
+      throw new ApiError(400, `Nada para salvar em ${atual.nome}.`);
+    }
+
+    return [`update produtos set ${sets.join(', ')}, updated_at = now() where id = $${values.length + 1}`, [...values, item.id]];
+  });
+
+  await transaction(updates);
+  return { atualizados: updates.length };
+}
+
+export const produtosMassaSchema = z
+  .object({
+    ids: z.array(z.string().trim().min(1)).min(1, 'Selecione ao menos um produto.').max(200),
+    disponivel: z.boolean().optional(),
+    // SEM_CATEGORIA tira a categoria dos produtos.
+    categoria_id: z.string().trim().min(1).max(80).optional(),
+  })
+  .refine((input) => input.disponivel !== undefined || input.categoria_id !== undefined, 'Escolha o que mudar nos produtos selecionados.');
+
+export async function updateProdutosMassa(input: z.infer<typeof produtosMassaSchema>) {
+  const categoriaId = input.categoria_id === SEM_CATEGORIA ? null : input.categoria_id;
+
+  if (categoriaId) {
+    const [categoria] = await query<{ id: string }>('select id from categorias where id = $1', [categoriaId]);
+    if (!categoria) throw new ApiError(404, 'Categoria não encontrada.');
+  }
+
+  const { sets, values } = buildUpdate({ disponivel: input.disponivel, categoria_id: input.categoria_id === undefined ? undefined : categoriaId });
+  const rows = await query<{ id: string }>(
+    `update produtos set ${sets.join(', ')}, updated_at = now() where id = any($${values.length + 1}) returning id`,
+    [...values, input.ids]
+  );
+
+  return { atualizados: rows.length };
 }
 
 export async function deleteProduto(id: string) {

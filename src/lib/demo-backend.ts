@@ -6,7 +6,7 @@
 import { cardapioLocal } from '@/data/cardapio';
 import type { AuthSession } from '@/features/integrations/n8n-contracts';
 import { DEFAULT_SITE_SETTINGS, isDeliveryClosed, SITE_CLOSED_MESSAGE, type ConfiguracoesSite, type ConfiguracoesSiteUpdate } from '@/lib/site-settings';
-import { SEM_CATEGORIA, type Categoria, type Marmita, type MarmitaAdminListItem, type MarmitaFiltros } from '@/types/product';
+import { ESTOQUE_BAIXO, SEM_CATEGORIA, type Categoria, type Marmita, type MarmitaAdminListItem, type MarmitaFiltros, type ProdutoLoteAlteracao } from '@/types/product';
 
 export const DEMO_ADMIN_USERNAME = 'admin';
 export const DEMO_ADMIN_PASSWORD = 'demo1234';
@@ -114,6 +114,16 @@ export async function demoListMarmitasAdmin(page: number, pageSize: number, filt
     .filter((marmita) =>
       !filtros.categoria_id ? true : filtros.categoria_id === SEM_CATEGORIA ? !marmita.categoria_id : marmita.categoria_id === filtros.categoria_id
     )
+    // Mesmos filtros rápidos do servidor (buildProdutoFiltro).
+    .filter((marmita) => !filtros.foto || (filtros.foto === 'com') === !!marmita.imagem_url?.trim())
+    .filter((marmita) => !filtros.disponibilidade || (filtros.disponibilidade === 'disponivel') === !!marmita.disponivel)
+    .filter((marmita) => !filtros.sem_custo || marmita.custo === null || marmita.custo === undefined)
+    .filter((marmita) => {
+      const estoque = marmita.estoque ?? 0;
+      if (filtros.estoque === 'zerado') return estoque === 0;
+      if (filtros.estoque === 'baixo') return estoque >= 1 && estoque <= ESTOQUE_BAIXO;
+      return true;
+    })
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const start = (page - 1) * pageSize;
   const data = sorted.slice(start, start + pageSize) as MarmitaAdminListItem[];
@@ -146,6 +156,45 @@ export async function demoCreateMarmita(
   saveState(state);
 
   return delay({ id });
+}
+
+export async function demoUpdateMarmitasLote(itens: ProdutoLoteAlteracao[]) {
+  const state = loadState();
+
+  for (const item of itens) {
+    const index = state.marmitas.findIndex((marmita) => marmita.id === item.id);
+    if (index === -1) throw new Error('Um dos produtos não existe mais. Atualize a tela.');
+    const atual = state.marmitas[index];
+    const precos = new Map(item.opcoes?.map((opcao) => [opcao.codigo, opcao.preco]));
+
+    state.marmitas[index] = {
+      ...atual,
+      preco: item.preco ?? atual.preco,
+      custo: item.custo === undefined ? atual.custo : item.custo,
+      tamanhos: atual.tamanhos?.map((tamanho) => (precos.has(tamanho.codigo) ? { ...tamanho, preco: precos.get(tamanho.codigo) as number } : tamanho)),
+      updated_at: nowIso(),
+    };
+  }
+
+  saveState(state);
+  return delay({ atualizados: itens.length });
+}
+
+export async function demoUpdateMarmitasMassa(input: { ids: string[]; disponivel?: boolean; categoria_id?: string }) {
+  const state = loadState();
+  const ids = new Set(input.ids);
+  state.marmitas = state.marmitas.map((marmita) =>
+    ids.has(marmita.id)
+      ? {
+          ...marmita,
+          ...(input.disponivel === undefined ? {} : { disponivel: input.disponivel }),
+          ...(input.categoria_id === undefined ? {} : { categoria_id: input.categoria_id === SEM_CATEGORIA ? null : input.categoria_id }),
+          updated_at: nowIso(),
+        }
+      : marmita
+  );
+  saveState(state);
+  return delay({ atualizados: ids.size });
 }
 
 export async function demoUpdateMarmita(id: string, data: Partial<Marmita>): Promise<{ id: string }> {

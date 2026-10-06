@@ -14,6 +14,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const MesasPage = lazy(() => import("./pages/admin/MesasPage"));
 const MesaComandaPage = lazy(() => import("./pages/admin/MesaComandaPage"));
+const EdicaoLotePage = lazy(() => import("./pages/admin/EdicaoLotePage"));
 const DeliveryPage = lazy(() => import("./pages/admin/DeliveryPage"));
 const CaixaPage = lazy(() => import("./pages/admin/CaixaPage"));
 const CardapioPage = lazy(() => import("./pages/admin/CardapioPage"));
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="delivery" element={<DeliveryPage />} />
                   <Route path="caixa" element={<CaixaPage />} />
                   <Route path="cardapio" element={<CardapioPage />} />
+                  <Route path="cardapio/lote" element={<SomenteAdminLazy><EdicaoLotePage /></SomenteAdminLazy>} />
                   <Route path="marmitas/nova" element={<MarmitaEditor />} />
                   <Route path="marmitas/:marmitaId/editar" element={<MarmitaEditor />} />
                   <Route path="metricas" element={<SomenteAdminLazy><MetricasPage /></SomenteAdminLazy>} />

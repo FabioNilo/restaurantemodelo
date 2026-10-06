@@ -13,6 +13,11 @@ import {
   getProduto,
   listCategorias,
   listProdutos,
+  produtoFiltrosSchema,
+  produtosLoteSchema,
+  produtosMassaSchema,
+  updateProdutosLote,
+  updateProdutosMassa,
   produtoCreateSchema,
   produtoUpdateSchema,
   saveConfiguracoes,
@@ -70,8 +75,6 @@ const contaIdSchema = z.object({ id: z.string().uuid() });
 const pageSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
-  busca: z.string().trim().max(80).optional(),
-  categoria_id: z.string().trim().max(80).optional(),
 });
 
 interface ActionDefinition {
@@ -84,8 +87,8 @@ const actions: Record<string, ActionDefinition> = {
   'marmitas.list': {
     roles: ['admin', 'gestor'],
     run: async (payload) => {
-      const { page, pageSize, busca, categoria_id } = pageSchema.parse(payload);
-      return listProdutos(page, pageSize, { busca, categoria_id });
+      const { page, pageSize } = pageSchema.parse(payload);
+      return listProdutos(page, pageSize, produtoFiltrosSchema.parse(payload));
     },
   },
   'marmitas.detail': {
@@ -99,6 +102,14 @@ const actions: Record<string, ActionDefinition> = {
   'marmitas.update': {
     roles: ['admin'],
     run: async (payload) => updateProduto(idSchema.parse(payload).id, produtoUpdateSchema.parse(payload.data)),
+  },
+  'marmitas.lote': {
+    roles: ['admin'],
+    run: async (payload) => updateProdutosLote(produtosLoteSchema.parse(payload)),
+  },
+  'marmitas.massa': {
+    roles: ['admin'],
+    run: async (payload) => updateProdutosMassa(produtosMassaSchema.parse(payload)),
   },
   'marmitas.delete': {
     roles: ['admin'],

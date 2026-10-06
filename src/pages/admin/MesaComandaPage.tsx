@@ -14,14 +14,13 @@ import { toast } from '@/hooks/use-toast';
 import { useConfirmar } from '@/hooks/useConfirmar';
 import { getApiErrorMessage } from '@/lib/api';
 import { buildMesaUrl } from '@/lib/mesa';
-import { formaPagamentoLabel, formatBRL } from '@/lib/pagamentos';
+import { formatBRL } from '@/lib/pagamentos';
 import { queryKeys } from '@/lib/query-keys';
 import { resumirConta, SEM_NOME } from '@/lib/mesa-conta';
 import { downloadMesaContaThermalPdf, downloadMesaPedidoThermalPdf, type ModoContaMesa } from '@/lib/thermal-label-pdf';
 import { cn } from '@/lib/utils';
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_STYLE: Record<StatusPedidoMesa, string> = {
   pendente: 'bg-orange-500/15 text-orange-800',
@@ -91,7 +90,7 @@ export default function MesaComandaPage() {
   if (detalhe.isLoading) return <Loader2 className="mx-auto mt-20 h-8 w-8 animate-spin text-gold-ink" />;
   if (detalhe.error || !detalhe.data) return <p className="text-destructive">{getApiErrorMessage(detalhe.error, 'Mesa não encontrada.')}</p>;
 
-  const { mesa, conta, fechadas } = detalhe.data;
+  const { mesa, conta } = detalhe.data;
 
   // Cancelados somem da comanda. Pendentes aparecem (precisam de confirmação), mas só entram
   // no resumo e na conta impressa depois de confirmados.
@@ -320,21 +319,6 @@ export default function MesaComandaPage() {
         {lancando && <TelaCheiaFrame src={buildMesaUrl(mesa.token)} titulo={`Cardápio da ${mesa.nome}`} />}
       </TelaCheia>
       {dialogo}
-
-      {fechadas.length > 0 && (
-        <section className="rounded-2xl border bg-card p-5 shadow-soft">
-          <h2 className="mb-3 font-display text-2xl font-bold text-secondary">Últimas contas fechadas</h2>
-          <ul className="divide-y text-sm">
-            {fechadas.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-3 py-2">
-                <span className="w-32 text-muted-foreground">{dataHora(c.fechada_em)}</span>
-                <span className="flex-1">{c.pagamentos.map((p) => `${formaPagamentoLabel(p.metodo)} ${formatBRL(p.valor)}`).join(' + ') || '—'}</span>
-                <strong className="tabular-nums">{formatBRL(c.valor_total)}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

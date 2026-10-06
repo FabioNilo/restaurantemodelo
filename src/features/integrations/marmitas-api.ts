@@ -13,6 +13,8 @@ import {
   demoUpdateCategoria,
   demoUpdateMarmita,
   demoUpdateMarmitaStock,
+  demoUpdateMarmitasLote,
+  demoUpdateMarmitasMassa,
   isDemoToken,
 } from '@/lib/demo-backend';
 import {
@@ -46,7 +48,7 @@ import type { FormaPagamento } from '@/lib/pagamentos';
 import type { CaixaMovimentacao, CaixaResumo, CaixaSerieDiaria } from '@/hooks/useCaixaMovimentacoes';
 import type { Pedido, PedidoListItem, PedidosResumo } from '@/hooks/usePedidos';
 import type { ConfiguracoesSite, ConfiguracoesSiteUpdate } from '@/lib/site-settings';
-import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros } from '@/types/product';
+import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros, ProdutoLoteAlteracao } from '@/types/product';
 
 function unwrap<T>(response: unknown): T {
   if (response && typeof response === 'object' && 'success' in response && 'data' in response) {
@@ -286,6 +288,10 @@ export function fetchMarmitasAdminPageN8n(page: number, pageSize: number, filtro
     pageSize,
     busca: filtros.busca || undefined,
     categoria_id: filtros.categoria_id || undefined,
+    foto: filtros.foto,
+    disponibilidade: filtros.disponibilidade,
+    sem_custo: filtros.sem_custo || undefined,
+    estoque: filtros.estoque,
     orderBy: 'nome',
     orderDirection: 'asc',
     caseInsensitive: true,
@@ -322,6 +328,24 @@ export function updateMarmitaN8n(id: string, data: Partial<Marmita>) {
   }
 
   return requestMarmitasAdmin<{ id: string }>('marmitas.update', { id, data });
+}
+
+// Edição em lote: preço, custo e preço das opções de até 25 produtos, numa transação só.
+export function updateMarmitasLoteN8n(itens: ProdutoLoteAlteracao[]) {
+  if (!hasN8NBaseUrl()) {
+    return demoUpdateMarmitasLote(itens);
+  }
+
+  return requestMarmitasAdmin<{ atualizados: number }>('marmitas.lote', { itens });
+}
+
+// Ação em massa nos produtos selecionados: disponibilidade e/ou categoria.
+export function updateMarmitasMassaN8n(input: { ids: string[]; disponivel?: boolean; categoria_id?: string }) {
+  if (!hasN8NBaseUrl()) {
+    return demoUpdateMarmitasMassa(input);
+  }
+
+  return requestMarmitasAdmin<{ atualizados: number }>('marmitas.massa', input);
 }
 
 export function updateMarmitaStockN8n(id: string, estoque: number) {

@@ -10,6 +10,12 @@ export function getSql() {
   return client;
 }
 
+// Várias consultas numa transação só (tudo ou nada), pelo mesmo driver HTTP.
+export async function transaction(queries: Array<[text: string, params: unknown[]]>) {
+  const sql = getSql();
+  return sql.transaction(queries.map(([text, params]) => sql.query(text, params)));
+}
+
 // Consulta com texto + parâmetros ($1, $2...), para SQL montado dinamicamente.
 export async function query<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
   return (await getSql().query(text, params)) as T[];

@@ -38,6 +38,7 @@ export interface MarmitaAdminListItem {
   estoque: number | null;
   disponivel: boolean | null;
   imagem_url: string | null;
+  tamanhos?: ProdutoTamanho[];
   created_at: string | null;
 }
 
@@ -45,6 +46,22 @@ export interface MarmitaAdminListItem {
 export interface MarmitaFiltros {
   busca?: string;
   categoria_id?: string;
+  foto?: 'com' | 'sem';
+  disponibilidade?: 'disponivel' | 'indisponivel';
+  sem_custo?: boolean;
+  estoque?: 'baixo' | 'zerado';
+}
+
+// Mesmo limite do servidor (server/catalog.ts): estoque "baixo" é de 1 a 5 unidades.
+export const ESTOQUE_BAIXO = 5;
+export const MAX_PRODUTOS_LOTE = 25;
+
+// Uma linha salva pela edição em lote: só os campos que mudaram.
+export interface ProdutoLoteAlteracao {
+  id: string;
+  preco?: number;
+  custo?: number | null;
+  opcoes?: Array<{ codigo: string; preco: number }>;
 }
 
 export const SEM_CATEGORIA = 'sem-categoria';

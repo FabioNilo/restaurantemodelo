@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMarmitasAdmin } from '@/hooks/useMarmitasAdmin';
-import { Marmita, SEM_CATEGORIA } from '@/types/product';
+import { Marmita, SEM_CATEGORIA, type MarmitaAdminListItem, type MarmitaFiltros } from '@/types/product';
+import { BarraSelecao } from '@/components/admin/cardapio/BarraSelecao';
+import { DisponivelSwitch } from '@/components/admin/cardapio/DisponivelSwitch';
+import { FiltrosRapidos, type FiltroRapidoParam } from '@/components/admin/cardapio/FiltrosRapidos';
+import { Checkbox } from '@/components/ui/checkbox';
+import { getApiErrorMessage } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +23,7 @@ import {
   ArrowDown,
   ArrowUp,
   Plus,
-  ChevronRight,
+  Table2,
   Pencil,
   Trash2,
   Loader2,
@@ -46,6 +51,21 @@ export function MarmitasManager() {
   const categoriaFiltro = searchParams.get('cat') ?? '';
   const page = Math.max(1, Number(searchParams.get('pagina')) || 1);
   const [buscaDigitada, setBuscaDigitada] = useState(busca);
+  // Filtros rápidos (chips): também na URL.
+  const rapidos = {
+    foto: searchParams.get('foto') ?? undefined,
+    disp: searchParams.get('disp') ?? undefined,
+    custo: searchParams.get('custo') ?? undefined,
+    estoque: searchParams.get('estoque') ?? undefined,
+  };
+  const filtrosLista: MarmitaFiltros = {
+    busca,
+    categoria_id: categoriaFiltro,
+    foto: rapidos.foto === 'com' || rapidos.foto === 'sem' ? rapidos.foto : undefined,
+    disponibilidade: rapidos.disp === 'disponivel' || rapidos.disp === 'indisponivel' ? rapidos.disp : undefined,
+    sem_custo: rapidos.custo === 'sem' || undefined,
+    estoque: rapidos.estoque === 'baixo' || rapidos.estoque === 'zerado' ? rapidos.estoque : undefined,
+  };
 
   const atualizarParams = (mudancas: Record<string, string | null>) => {
     setSearchParams(
@@ -74,11 +94,12 @@ export function MarmitasManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buscaDigitada]);
 
-  const filtrando = !!busca || !!categoriaFiltro;
+  const filtrando = !!busca || !!categoriaFiltro || Object.values(rapidos).some(Boolean);
   const limparFiltros = () => {
     setBuscaDigitada('');
-    atualizarParams({ q: null, cat: null, pagina: null });
+    atualizarParams({ q: null, cat: null, foto: null, disp: null, custo: null, estoque: null, pagina: null });
   };
+  const alterarFiltroRapido = (param: FiltroRapidoParam, valor: string | null) => atualizarParams({ [param]: valor, pagina: null });
 
   const {
     marmitas,
@@ -88,10 +109,12 @@ export function MarmitasManager() {
     error,
     refetch,
     deleteMarmita,
+    updateMarmita,
+    updateMarmitasMassa,
     createCategoria,
     updateCategoria,
     deleteCategoria
-  } = useMarmitasAdmin(page, { busca, categoria_id: categoriaFiltro });
+  } = useMarmitasAdmin(page, filtrosLista);
   const navigate = useNavigate();
 
   const [deleteItem, setDeleteItem] = useState<Marmita | null>(null);
@@ -101,6 +124,51 @@ export function MarmitasManager() {
   const [savingCategoria, setSavingCategoria] = useState(false);
   const [deletingCategoria, setDeletingCategoria] = useState<string | null>(null);
   const [movingCategoria, setMovingCategoria] = useState<string | null>(null);
+  const [alternandoId, setAlternandoId] = useState<string | null>(null);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [aplicandoMassa, setAplicandoMassa] = useState(false);
+
+  // A seleção vale para o que está na tela: trocar filtro ou página limpa.
+  const chaveLista = searchParams.toString();
+  useEffect(() => setSelecionados(new Set()), [chaveLista]);
+
+  const alternarSelecao = (id: string) =>
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(id)) proximo.delete(id);
+      else proximo.add(id);
+      return proximo;
+    });
+
+  const alternarDisponivel = async (marmita: MarmitaAdminListItem, disponivel: boolean) => {
+    setAlternandoId(marmita.id);
+    const result = await updateMarmita(marmita.id, { disponivel });
+    setAlternandoId(null);
+
+    if (!result.success) {
+      toast({ title: 'Não foi possível alterar', description: getApiErrorMessage(result.error), variant: 'destructive' });
+      return;
+    }
+
+    toast({
+      title: disponivel ? `${marmita.nome} à venda` : `${marmita.nome} oculto do cardápio`,
+      description: disponivel && (marmita.estoque ?? 0) <= 0 ? 'Está sem estoque: só aparece no site quando tiver estoque.' : undefined,
+    });
+  };
+
+  const aplicarMassa = async (mudanca: { disponivel?: boolean; categoria_id?: string }) => {
+    setAplicandoMassa(true);
+    const result = await updateMarmitasMassa({ ids: [...selecionados], ...mudanca });
+    setAplicandoMassa(false);
+
+    if (!result.success) {
+      toast({ title: 'Não foi possível aplicar', description: getApiErrorMessage(result.error), variant: 'destructive' });
+      return;
+    }
+
+    setSelecionados(new Set());
+    toast({ title: `${result.atualizados} produto(s) atualizado(s)` });
+  };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
   const orderedCategorias = useMemo(() => sortCategoriesByDisplayOrder(categorias), [categorias]);
@@ -384,6 +452,14 @@ export function MarmitasManager() {
             <Tag className="h-4 w-4 mr-2" />
             Categorias
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/admin/cardapio/lote${categoriaFiltro ? `?cat=${encodeURIComponent(categoriaFiltro)}` : ''}`)}
+            className="h-11 sm:h-10"
+          >
+            <Table2 className="h-4 w-4 mr-2" />
+            Editar em lote
+          </Button>
         </div>
         <Button variant="ghost" onClick={refetch} className="h-11 sm:h-10">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -394,7 +470,7 @@ export function MarmitasManager() {
       {/* Celular: "Novo produto" flutuante, acima da barra de navegação. */}
       <Button
         onClick={handleOpenCreate}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 h-14 rounded-full px-5 font-bold shadow-card sm:hidden"
+        className={cn('fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 h-14 rounded-full px-5 font-bold shadow-card sm:hidden', selecionados.size > 0 && 'hidden')}
         aria-label="Novo produto"
       >
         <Plus className="mr-1 h-5 w-5" /> Novo
@@ -465,6 +541,8 @@ export function MarmitasManager() {
             )}
           </div>
 
+          <FiltrosRapidos valores={rapidos} onChange={alterarFiltroRapido} />
+
           {marmitas.length === 0 && filtrando ? (
             <div className="py-12 text-center text-muted-foreground">
               <Search className="mx-auto mb-4 h-12 w-12 opacity-50" />
@@ -488,7 +566,13 @@ export function MarmitasManager() {
                 {marmitas.map((marmita) => {
                   const foto = getCatalogImageSrc(marmita.imagem_url);
                   return (
-                    <li key={marmita.id} className="flex items-center gap-3 p-3">
+                    <li key={marmita.id} className={cn('flex items-center gap-2 p-3', selecionados.has(marmita.id) && 'bg-primary/10')}>
+                      <Checkbox
+                        checked={selecionados.has(marmita.id)}
+                        onCheckedChange={() => alternarSelecao(marmita.id)}
+                        aria-label={`Selecionar ${marmita.nome}`}
+                        className="h-5 w-5"
+                      />
                       <button type="button" onClick={() => handleOpenEdit(marmita.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                         {foto ? (
                           <img src={foto} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-lg bg-muted object-cover" />
@@ -504,17 +588,23 @@ export function MarmitasManager() {
                           </span>
                           <span className="mt-0.5 flex items-center gap-2">
                             <span className="font-bold text-gold-ink">R$ {Number(marmita.preco).toFixed(2).replace('.', ',')}</span>
-                            {!marmita.disponivel && <Badge variant="secondary" className="px-1.5 py-0 text-[0.65rem]">Indisponível</Badge>}
                           </span>
                         </span>
-                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
                       </button>
+                      <DisponivelSwitch
+                        compacto
+                        nome={marmita.nome}
+                        disponivel={!!marmita.disponivel}
+                        estoque={marmita.estoque ?? 0}
+                        carregando={alternandoId === marmita.id}
+                        onChange={(disponivel) => alternarDisponivel(marmita, disponivel)}
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteItem(marmita as Marmita)}
                         aria-label={`Excluir ${marmita.nome}`}
-                        className="h-11 w-11 shrink-0 text-destructive hover:text-destructive"
+                        className="h-11 w-9 shrink-0 text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -527,6 +617,13 @@ export function MarmitasManager() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={marmitas.length > 0 && marmitas.every((m) => selecionados.has(m.id))}
+                          onCheckedChange={(marcar) => setSelecionados(marcar ? new Set(marmitas.map((m) => m.id)) : new Set())}
+                          aria-label="Selecionar todos desta página"
+                        />
+                      </TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Categoria</TableHead>
                       <TableHead className="text-right">Preço</TableHead>
@@ -537,7 +634,14 @@ export function MarmitasManager() {
                   </TableHeader>
                   <TableBody>
                     {marmitas.map((marmita) => (
-                        <TableRow key={marmita.id}>
+                        <TableRow key={marmita.id} data-state={selecionados.has(marmita.id) ? 'selected' : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selecionados.has(marmita.id)}
+                              onCheckedChange={() => alternarSelecao(marmita.id)}
+                              aria-label={`Selecionar ${marmita.nome}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{marmita.nome}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{getCategoriaName(marmita.categoria_id)}</Badge>
@@ -547,9 +651,15 @@ export function MarmitasManager() {
                           </TableCell>
                           <TableCell className="text-center">{marmita.estoque ?? 0}</TableCell>
                           <TableCell className="text-center">
-                            <Badge variant={marmita.disponivel ? 'default' : 'secondary'}>
-                              {marmita.disponivel ? 'Disponível' : 'Indisponível'}
-                            </Badge>
+                            <div className="flex justify-center">
+                              <DisponivelSwitch
+                                nome={marmita.nome}
+                                disponivel={!!marmita.disponivel}
+                                estoque={marmita.estoque ?? 0}
+                                carregando={alternandoId === marmita.id}
+                                onChange={(disponivel) => alternarDisponivel(marmita, disponivel)}
+                              />
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
@@ -605,8 +715,18 @@ export function MarmitasManager() {
               </div>
             </div>
           )}
+          {selecionados.size > 0 && <div className="h-36 lg:h-20" aria-hidden="true" />}
         </CardContent>
       </Card>
+
+      <BarraSelecao
+        quantidade={selecionados.size}
+        categorias={orderedCategorias}
+        enviando={aplicandoMassa}
+        onDisponivel={(disponivel) => aplicarMassa({ disponivel })}
+        onMoverCategoria={(categoria_id) => aplicarMassa({ categoria_id })}
+        onLimpar={() => setSelecionados(new Set())}
+      />
     </div>
   );
 }
