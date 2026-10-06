@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { downloadPedidoThermalLabelPdf } from './thermal-label-pdf';
+import { buildMesaContaReceiptLines, downloadPedidoThermalLabelPdf } from './thermal-label-pdf';
 
 describe('downloadPedidoThermalLabelPdf', () => {
   afterEach(() => {
@@ -116,5 +116,39 @@ describe('downloadPedidoThermalLabelPdf', () => {
     const pdfText = await pdfBlob!.text();
     expect(pdfText).toContain('ENTREGA: R$ 5,00');
     expect(pdfText).toContain('TOTAL: R$ 77,00');
+  });
+});
+
+describe('buildMesaContaReceiptLines', () => {
+  const item = (nome: string, preco: number, quantidade: number) => ({
+    produto_id: nome,
+    nome,
+    tamanho_codigo: null,
+    tamanho_nome: null,
+    tamanho_serve: null,
+    preco,
+    quantidade,
+  });
+  const pedidos = [
+    { status: 'entregue' as const, nome_cliente: 'Ana', created_at: '', itens: [item('Café', 5, 2)] },
+    { status: 'novo' as const, nome_cliente: null, created_at: '', itens: [item('Bolo', 10, 1)] },
+    { status: 'cancelado' as const, nome_cliente: 'Beto', created_at: '', itens: [item('Suco', 7, 1)] },
+  ];
+  const texto = (modo: 'resumo' | 'pessoas') => buildMesaContaReceiptLines(pedidos, 'Mesa 3', modo).map((linha) => linha.text);
+
+  it('por pessoa: cada nome com subtotal, "sem nome" no fim e total da mesa', () => {
+    const linhas = texto('pessoas');
+    expect(linhas).toContain('ANA');
+    expect(linhas).toContain('SUBTOTAL: R$ 10,00');
+    expect(linhas).toContain('SEM NOME');
+    expect(linhas).toContain('TOTAL: R$ 20,00');
+    expect(linhas.join('\n')).not.toContain('SUCO');
+  });
+
+  it('resumo: itens somados, sem seção por pessoa', () => {
+    const linhas = texto('resumo');
+    expect(linhas).toContain('2x CAFE'.replace('CAFE', 'CAFÉ'));
+    expect(linhas).not.toContain('ANA');
+    expect(linhas).toContain('TOTAL: R$ 20,00');
   });
 });

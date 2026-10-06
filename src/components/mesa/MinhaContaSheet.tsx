@@ -12,8 +12,9 @@ interface MinhaContaSheetProps {
 }
 
 const STATUS_STYLE: Record<StatusPedidoMesa, string> = {
+  pendente: 'bg-orange-500/15 text-orange-800',
   novo: 'bg-primary/20 text-gold-ink',
-  em_preparo: 'bg-orange-500/15 text-orange-800',
+  em_preparo: 'bg-primary/20 text-gold-ink',
   entregue: 'bg-secondary/15 text-secondary',
   cancelado: 'bg-destructive/10 text-destructive line-through',
 };

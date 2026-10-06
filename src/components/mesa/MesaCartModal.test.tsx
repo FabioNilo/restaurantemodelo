@@ -54,7 +54,7 @@ beforeEach(() => {
 describe('MesaCartModal', () => {
   it('envia só produto, opção e quantidade — sem preço, endereço ou WhatsApp', async () => {
     const user = userEvent.setup();
-    createPedidoMesaMock.mockResolvedValue({ numero: 12, status: 'novo', valor_total: 27.8 });
+    createPedidoMesaMock.mockResolvedValue({ numero: 12, status: 'pendente', valor_total: 27.8 });
     renderMesa();
 
     await user.selectOptions(screen.getByLabelText(/Escolha o sabor/i), 'opcao_pistache');
@@ -63,18 +63,22 @@ describe('MesaCartModal', () => {
     await user.click(screen.getByRole('button', { name: /Continuar/i }));
 
     expect(screen.queryByLabelText(/Endereço/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Telefone/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/WhatsApp/i)).not.toBeInTheDocument();
 
+    // Sem nome e telefone o botão fica travado: o atendente precisa de contato para confirmar.
+    expect(screen.getByRole('button', { name: /Enviar pedido para o caixa/i })).toBeDisabled();
     await user.type(screen.getByLabelText(/Seu nome/i), 'Ana');
+    await user.type(screen.getByLabelText(/Seu telefone/i), '(73) 99999-1234');
     await user.type(screen.getByLabelText(/Observações/i), 'sem calda');
     await user.click(screen.getByRole('button', { name: /Enviar pedido para o caixa/i }));
 
     expect(createPedidoMesaMock).toHaveBeenCalledWith('token-mesa-5', {
       nome_cliente: 'Ana',
+      telefone_cliente: '73999991234',
       observacoes: 'sem calda',
       itens: [{ produto_id: 'picole', tamanho_codigo: 'opcao_pistache', quantidade: 2 }],
     });
-    expect(await screen.findByText(/Pedido nº 12 recebido/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Pedido nº 12 enviado/i)).toBeInTheDocument();
   });
 
   it('mostra o erro da API sem limpar o carrinho', async () => {
@@ -84,6 +88,8 @@ describe('MesaCartModal', () => {
 
     await user.click(screen.getByRole('button', { name: /Adicionar/i }));
     await user.click(screen.getByRole('button', { name: /Continuar/i }));
+    await user.type(screen.getByLabelText(/Seu nome/i), 'Ana');
+    await user.type(screen.getByLabelText(/Seu telefone/i), '73999991234');
     await user.click(screen.getByRole('button', { name: /Enviar pedido para o caixa/i }));
 
     expect(toastMock).toHaveBeenCalledWith(

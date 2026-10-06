@@ -142,7 +142,7 @@ export default function MesasPage() {
                       <Clock className="h-3.5 w-3.5" /> aberta há {minutosDesde(mesa.aberta_em)} min
                       {mesa.em_andamento > 0 && (
                         <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-gold-ink">
-                          {mesa.novos > 0 ? `${mesa.novos} novo(s)` : `${mesa.em_andamento} em preparo`}
+                          {mesa.novos > 0 ? `${mesa.novos} a confirmar` : `${mesa.em_andamento} a entregar`}
                         </span>
                       )}
                     </p>

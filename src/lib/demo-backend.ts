@@ -6,7 +6,7 @@
 import { cardapioLocal } from '@/data/cardapio';
 import type { AuthSession } from '@/features/integrations/n8n-contracts';
 import { DEFAULT_SITE_SETTINGS, isDeliveryClosed, SITE_CLOSED_MESSAGE, type ConfiguracoesSite, type ConfiguracoesSiteUpdate } from '@/lib/site-settings';
-import type { Categoria, Marmita, MarmitaAdminListItem } from '@/types/product';
+import { SEM_CATEGORIA, type Categoria, type Marmita, type MarmitaAdminListItem, type MarmitaFiltros } from '@/types/product';
 
 export const DEMO_ADMIN_USERNAME = 'admin';
 export const DEMO_ADMIN_PASSWORD = 'demo1234';
@@ -104,9 +104,17 @@ export function isDemoToken(token: string | undefined | null) {
 
 // --- Cardápio (produtos e categorias) ---
 
-export async function demoListMarmitasAdmin(page: number, pageSize: number) {
+const semAcento = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+export async function demoListMarmitasAdmin(page: number, pageSize: number, filtros: MarmitaFiltros = {}) {
   const state = loadState();
-  const sorted = [...state.marmitas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const busca = semAcento(filtros.busca?.trim() ?? '');
+  const sorted = state.marmitas
+    .filter((marmita) => !busca || semAcento(marmita.nome).includes(busca))
+    .filter((marmita) =>
+      !filtros.categoria_id ? true : filtros.categoria_id === SEM_CATEGORIA ? !marmita.categoria_id : marmita.categoria_id === filtros.categoria_id
+    )
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const start = (page - 1) * pageSize;
   const data = sorted.slice(start, start + pageSize) as MarmitaAdminListItem[];
 

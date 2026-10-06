@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Armchair, CheckCircle2, ChefHat, ExternalLink, Loader2, Printer, XCircle } from 'lucide-react';
@@ -11,21 +12,25 @@ import { getApiErrorMessage } from '@/lib/api';
 import { buildMesaUrl } from '@/lib/mesa';
 import { formaPagamentoLabel, formatBRL } from '@/lib/pagamentos';
 import { queryKeys } from '@/lib/query-keys';
-import { downloadMesaPedidoThermalPdf } from '@/lib/thermal-label-pdf';
+import { resumirConta, SEM_NOME } from '@/lib/mesa-conta';
+import { downloadMesaContaThermalPdf, downloadMesaPedidoThermalPdf, type ModoContaMesa } from '@/lib/thermal-label-pdf';
 import { cn } from '@/lib/utils';
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_STYLE: Record<StatusPedidoMesa, string> = {
+  pendente: 'bg-orange-500/15 text-orange-800',
   novo: 'bg-primary/25 text-gold-ink',
-  em_preparo: 'bg-orange-500/15 text-orange-800',
+  em_preparo: 'bg-primary/25 text-gold-ink',
   entregue: 'bg-secondary/15 text-secondary',
   cancelado: 'bg-muted text-muted-foreground',
 };
 
+// Sem cozinha: o atendente confirma o pedido e depois marca como entregue.
 const PROXIMO: Partial<Record<StatusPedidoMesa, { status: StatusPedidoMesa; label: string }>> = {
-  novo: { status: 'em_preparo', label: 'Preparar' },
+  pendente: { status: 'novo', label: 'Confirmar pedido' },
+  novo: { status: 'entregue', label: 'Entregue' },
   em_preparo: { status: 'entregue', label: 'Entregue' },
 };
 
@@ -35,6 +40,7 @@ export default function MesaComandaPage() {
   const queryClient = useQueryClient();
   const { permissions } = useAuth();
   const chave = ['admin', 'mesas', 'detalhe', id] as const;
+  const [visao, setVisao] = useState<'resumo' | 'detalhado'>('detalhado');
 
   const detalhe = useQuery({
     queryKey: chave,
@@ -79,6 +85,14 @@ export default function MesaComandaPage() {
 
   const { mesa, conta, fechadas } = detalhe.data;
 
+  // Cancelados somem da comanda. Pendentes aparecem (precisam de confirmação), mas só entram
+  // no resumo e na conta impressa depois de confirmados.
+  const pedidosAtivos = conta?.pedidos.filter((pedido) => pedido.status !== 'cancelado') ?? [];
+  const pedidosNaConta = pedidosAtivos.filter((pedido) => pedido.status !== 'pendente');
+  const pendentes = pedidosAtivos.length - pedidosNaConta.length;
+  const resumo = resumirConta(pedidosNaConta);
+  const imprimirConta = (modo: ModoContaMesa) => downloadMesaContaThermalPdf(pedidosNaConta, mesa.nome, modo);
+
   const imprimir = (pedido: PedidoMesaPainel) =>
     downloadMesaPedidoThermalPdf(
       { ...pedido, itens: pedido.itens.map((i) => ({ ...i, tamanho_nome: i.tamanho_nome ?? undefined, tamanho_serve: i.tamanho_serve ?? undefined })) },
@@ -109,8 +123,64 @@ export default function MesaComandaPage() {
       {conta && (
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <section className="flex flex-col gap-3">
-            {conta.pedidos.length === 0 && <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">Nenhum pedido ainda.</p>}
-            {conta.pedidos.map((pedido) => {
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div role="group" aria-label="Visualização do pedido" className="inline-flex rounded-full border bg-card p-1">
+                {(['resumo', 'detalhado'] as const).map((opcao) => (
+                  <button
+                    key={opcao}
+                    type="button"
+                    aria-pressed={visao === opcao}
+                    onClick={() => setVisao(opcao)}
+                    className={cn(
+                      'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                      visao === opcao ? 'bg-secondary text-primary' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {opcao === 'resumo' ? 'Resumo do pedido' : 'Pedido detalhado'}
+                  </button>
+                ))}
+              </div>
+              {pedidosNaConta.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => imprimirConta('resumo')}>
+                    <Printer className="mr-1 h-4 w-4" /> Conta (resumo)
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => imprimirConta('pessoas')}>
+                    <Printer className="mr-1 h-4 w-4" /> Conta por pessoa
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {pedidosAtivos.length === 0 && <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">Nenhum pedido ainda.</p>}
+
+            {pendentes > 0 && (
+              <p role="alert" className="rounded-2xl border border-orange-500/40 bg-orange-500/10 p-3 text-sm font-semibold text-orange-800">
+                {pendentes} {pendentes === 1 ? 'pedido aguarda' : 'pedidos aguardam'} confirmação. Ligue para quem pediu ou confira na mesa e confirme.
+              </p>
+            )}
+
+            {visao === 'resumo' && pedidosNaConta.length > 0 && (
+              <article className="rounded-2xl border bg-card p-4 text-sm shadow-soft">
+                <ul className="space-y-1">
+                  {resumo.itens.map((item) => (
+                    <li key={`${item.nome}-${item.opcao}-${item.preco}`} className="flex justify-between gap-3">
+                      <span>
+                        <strong>{item.quantidade}×</strong> {item.nome}
+                        {item.opcao && <span className="block text-xs text-muted-foreground">{item.opcao}</span>}
+                      </span>
+                      <span className="tabular-nums">{formatBRL(item.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 flex justify-between border-t pt-3 font-bold">
+                  <span>Total ({pedidosNaConta.length} {pedidosNaConta.length === 1 ? 'pedido' : 'pedidos'})</span>
+                  <span className="tabular-nums">{formatBRL(resumo.total)}</span>
+                </p>
+              </article>
+            )}
+
+            {visao === 'detalhado' && pedidosAtivos.map((pedido) => {
               const proximo = PROXIMO[pedido.status];
               return (
                 <article key={pedido.id} className={cn('rounded-2xl border bg-card p-4 text-sm shadow-soft', pedido.status === 'cancelado' && 'opacity-50')}>
@@ -118,8 +188,8 @@ export default function MesaComandaPage() {
                     <p className="font-display text-xl font-bold">
                       Nº {pedido.numero}{' '}
                       <span className="font-sans text-sm font-normal text-muted-foreground">
-                        · {hora(pedido.created_at)}
-                        {pedido.nome_cliente ? ` · ${pedido.nome_cliente}` : ''}
+                        · {hora(pedido.created_at)} · {pedido.nome_cliente || SEM_NOME}
+                        {pedido.telefone_cliente ? ` · ${pedido.telefone_cliente}` : ''}
                       </span>
                     </p>
                     <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', STATUS_STYLE[pedido.status])}>{STATUS_PEDIDO_MESA_LABELS[pedido.status]}</span>
@@ -144,11 +214,11 @@ export default function MesaComandaPage() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {proximo && (
                         <Button size="sm" variant="secondary" className="text-primary" disabled={status.isPending} onClick={() => status.mutate({ pedidoId: pedido.id, novo: proximo.status })}>
-                          {proximo.status === 'em_preparo' ? <ChefHat className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
+                          {proximo.status === 'novo' ? <ChefHat className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
                           {proximo.label}
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => imprimir(pedido)}>
+                      <Button size="sm" variant="outline" onClick={() => imprimir(pedido)} disabled={pedido.status === 'pendente'} title={pedido.status === 'pendente' ? 'Confirme o pedido antes de imprimir' : undefined}>
                         <Printer className="mr-1 h-4 w-4" /> Imprimir
                       </Button>
                       {pedido.status !== 'entregue' && (

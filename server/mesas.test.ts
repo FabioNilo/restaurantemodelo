@@ -41,7 +41,7 @@ function simularBanco({ mesa = MESA, recentes = 0 }: Cenario = {}) {
     if (text.includes('from produtos where id = any')) return PRODUTOS.filter((p) => (params[0] as string[]).includes(p.id));
     if (text.includes('insert into pedidos_mesa')) {
       inserts.push(params);
-      return [{ numero: '12', status: 'novo', valor_total: String(params[4]) }];
+      return [{ numero: '12', status: 'pendente', valor_total: String(params[4]) }];
     }
     if (text.includes('from usuarios_admin where id')) {
       return [
@@ -55,11 +55,13 @@ function simularBanco({ mesa = MESA, recentes = 0 }: Cenario = {}) {
   return inserts;
 }
 
-function postPedido(body: unknown) {
+const CONTATO = { nome_cliente: 'Maria', telefone_cliente: '(73) 99999-1234' };
+
+function postPedido(body: Record<string, unknown>) {
   return app.request(`/api/mesas/${TOKEN}/pedidos`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...CONTATO, ...body }),
   });
 }
 
@@ -98,9 +100,22 @@ describe('POST /api/mesas/:token/pedidos', () => {
     const response = await postPedido({ itens: [{ produto_id: 'picole', tamanho_codigo: 'opcao_pistache', quantidade: 2, preco: 0.01 }] });
 
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ success: true, data: { numero: 12, status: 'novo', valor_total: 27.8 } });
+    expect(await response.json()).toEqual({ success: true, data: { numero: 12, status: 'pendente', valor_total: 27.8 } });
     expect(JSON.parse(String(inserts[0][3]))[0]).toMatchObject({ produto_id: 'picole', preco: 13.9, quantidade: 2 });
     expect(inserts[0][4]).toBe(27.8);
+    // Nome e telefone (só dígitos) vão junto, para o atendente confirmar com a pessoa.
+    expect(inserts[0][1]).toBe('Maria');
+    expect(inserts[0][5]).toBe('73999991234');
+  });
+
+  it('exige nome e telefone válidos', async () => {
+    simularBanco();
+    const itens = [{ produto_id: 'cappuccino', quantidade: 1 }];
+    expect((await postPedido({ itens, nome_cliente: '' })).status).toBe(400);
+    expect((await postPedido({ itens, nome_cliente: 'A' })).status).toBe(400);
+    expect((await postPedido({ itens, telefone_cliente: '' })).status).toBe(400);
+    expect((await postPedido({ itens, telefone_cliente: '12345' })).status).toBe(400);
+    expect((await postPedido({ itens, telefone_cliente: undefined as unknown as string })).status).toBe(400);
   });
 
   it('responde 404 para token inválido e 409 para mesa desativada', async () => {

@@ -41,6 +41,14 @@ export interface MarmitaAdminListItem {
   created_at: string | null;
 }
 
+// Filtros da lista de produtos no admin. categoria_id 'sem-categoria' = produtos sem categoria.
+export interface MarmitaFiltros {
+  busca?: string;
+  categoria_id?: string;
+}
+
+export const SEM_CATEGORIA = 'sem-categoria';
+
 // Categoria do catálogo.
 export interface Categoria {
   id: string;

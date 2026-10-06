@@ -1,4 +1,5 @@
 import { BRAND } from '@/lib/brand';
+import { agruparPorPessoa, resumirConta, type ItemResumo } from '@/lib/mesa-conta';
 
 interface ThermalLabelItem {
   quantidade?: number;
@@ -368,4 +369,55 @@ export function buildMesaReceiptLines(pedido: ThermalMesaPedido, mesaNome: strin
 
 export function downloadMesaPedidoThermalPdf(pedido: ThermalMesaPedido, mesaNome: string) {
   downloadReceipt(buildMesaReceiptLines(pedido, mesaNome), `mesa-pedido-${pedido.numero}.pdf`);
+}
+
+// --- Conta da mesa para pagamento: resumo geral ou descrita por pessoa ---
+
+export type ModoContaMesa = 'resumo' | 'pessoas';
+
+function linhasItensConta(itens: ItemResumo[]): ReceiptLine[] {
+  return itens.flatMap((item) => [
+    { text: `${item.quantidade}x ${compactText(item.nome, 'ITEM').toUpperCase()}`, font: 'itemName' as const },
+    ...(item.opcao ? [{ text: `  ${compactText(item.opcao).toUpperCase()}` }] : []),
+    { text: `  ${formatCurrency(item.total)}` },
+  ]);
+}
+
+export function buildMesaContaReceiptLines(
+  pedidos: Parameters<typeof resumirConta>[0],
+  mesaNome: string,
+  modo: ModoContaMesa,
+  agora = new Date()
+): ReceiptLine[] {
+  const resumo = resumirConta(pedidos);
+  const data = agora.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  const corpo: ReceiptLine[] =
+    modo === 'resumo'
+      ? linhasItensConta(resumo.itens)
+      : agruparPorPessoa(pedidos).flatMap((grupo, index) => [
+          ...(index > 0 ? [{ text: '' }] : []),
+          { text: compactText(grupo.nome).toUpperCase(), font: 'bold' as const },
+          ...linhasItensConta(grupo.itens),
+          { text: `SUBTOTAL: ${formatCurrency(grupo.total)}`, font: 'bold' as const },
+          { text: DIVIDER, align: 'center' as const },
+        ]);
+
+  return [
+    { text: BRAND.name.toUpperCase(), font: 'title', align: 'center' },
+    { text: compactText(mesaNome).toUpperCase(), font: 'title', align: 'center' },
+    { text: modo === 'resumo' ? 'CONTA - RESUMO' : 'CONTA POR PESSOA', font: 'bold', align: 'center' },
+    { text: DIVIDER, align: 'center' },
+    { text: `DATA: ${data}` },
+    { text: DIVIDER, align: 'center' },
+    ...corpo,
+    { text: DIVIDER, align: 'center' },
+    { text: `TOTAL: ${formatCurrency(resumo.total)}`, font: 'bold' },
+    { text: '' },
+    { text: 'PAGAMENTO NO CAIXA', align: 'center' },
+  ];
+}
+
+export function downloadMesaContaThermalPdf(pedidos: Parameters<typeof resumirConta>[0], mesaNome: string, modo: ModoContaMesa) {
+  downloadReceipt(buildMesaContaReceiptLines(pedidos, mesaNome, modo), `mesa-conta-${modo}.pdf`);
 }

@@ -45,7 +45,7 @@ import type { FormaPagamento } from '@/lib/pagamentos';
 import type { CaixaMovimentacao, CaixaResumo, CaixaSerieDiaria } from '@/hooks/useCaixaMovimentacoes';
 import type { Pedido, PedidoListItem, PedidosResumo } from '@/hooks/usePedidos';
 import type { ConfiguracoesSite, ConfiguracoesSiteUpdate } from '@/lib/site-settings';
-import type { Categoria, Marmita, MarmitaAdminListItem } from '@/types/product';
+import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros } from '@/types/product';
 
 function unwrap<T>(response: unknown): T {
   if (response && typeof response === 'object' && 'success' in response && 'data' in response) {
@@ -275,14 +275,16 @@ async function requestMarmitasAdminPath<T>(path: string, payload: Record<string,
   });
 }
 
-export function fetchMarmitasAdminPageN8n(page: number, pageSize: number) {
+export function fetchMarmitasAdminPageN8n(page: number, pageSize: number, filtros: MarmitaFiltros = {}) {
   if (!hasN8NBaseUrl()) {
-    return demoListMarmitasAdmin(page, pageSize);
+    return demoListMarmitasAdmin(page, pageSize, filtros);
   }
 
   return requestMarmitasAdmin<{ data: MarmitaAdminListItem[]; count: number }>('marmitas.list', {
     page,
     pageSize,
+    busca: filtros.busca || undefined,
+    categoria_id: filtros.categoria_id || undefined,
     orderBy: 'nome',
     orderDirection: 'asc',
     caseInsensitive: true,

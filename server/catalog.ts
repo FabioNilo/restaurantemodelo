@@ -185,13 +185,47 @@ export async function getPublicCatalog(): Promise<{ categorias: Array<Pick<Categ
 
 // --- Produtos (admin) ---
 
-export async function listProdutos(page: number, pageSize: number) {
+// Valor de categoria_id que filtra os produtos sem categoria.
+export const SEM_CATEGORIA = 'sem-categoria';
+
+export interface ProdutoFiltros {
+  busca?: string;
+  categoria_id?: string;
+}
+
+// WHERE do filtro do admin: busca por nome sem diferenciar acento/maiúscula, e categoria.
+export function buildProdutoFiltro(filtros: ProdutoFiltros) {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  const busca = filtros.busca?.trim();
+
+  if (busca) {
+    // % e _ digitados pelo usuário valem como texto, não como curinga.
+    params.push(`%${busca.replace(/[\\%_]/g, '\\$&')}%`);
+    conditions.push(`public.unaccent(lower(nome)) like public.unaccent(lower($${params.length}))`);
+  }
+
+  if (filtros.categoria_id === SEM_CATEGORIA) {
+    conditions.push('categoria_id is null');
+  } else if (filtros.categoria_id) {
+    params.push(filtros.categoria_id);
+    conditions.push(`categoria_id = $${params.length}`);
+  }
+
+  return { where: conditions.length > 0 ? `where ${conditions.join(' and ')}` : '', params };
+}
+
+export async function listProdutos(page: number, pageSize: number, filtros: ProdutoFiltros = {}) {
   const safePageSize = Math.min(Math.max(pageSize, 1), 200);
   const offset = (Math.max(page, 1) - 1) * safePageSize;
+  const { where, params } = buildProdutoFiltro(filtros);
 
   const [rows, [{ count }]] = await Promise.all([
-    query<ProdutoRow>(`select ${PRODUTO_COLUMNS} from produtos order by lower(nome) limit $1 offset $2`, [safePageSize, offset]),
-    query<{ count: string }>('select count(*) from produtos'),
+    query<ProdutoRow>(
+      `select ${PRODUTO_COLUMNS} from produtos ${where} order by lower(nome) limit $${params.length + 1} offset $${params.length + 2}`,
+      [...params, safePageSize, offset]
+    ),
+    query<{ count: string }>(`select count(*) from produtos ${where}`, params),
   ]);
 
   const data: MarmitaAdminListItem[] = rows.map((row) => {

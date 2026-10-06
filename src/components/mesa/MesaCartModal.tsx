@@ -32,6 +32,7 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
   const queryClient = useQueryClient();
   const [step, setStep] = useState<'cart' | 'checkout' | 'enviado'>('cart');
   const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [pedidoNumero, setPedidoNumero] = useState<number | null>(null);
@@ -43,12 +44,21 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
     onClose();
   };
 
+  const telefoneValido = /^\d{10,11}$/.test(telefone.replace(/\D/g, ''));
+  const contatoValido = nome.trim().length >= 2 && telefoneValido;
+
   const handleEnviar = async () => {
+    if (!contatoValido) {
+      toast({ title: 'Informe seu nome e telefone', description: 'O atendente confirma o pedido com você. Use o telefone com DDD.', variant: 'destructive' });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const pedido = await createPedidoMesa(token, {
-        nome_cliente: nome.trim() || null,
+        nome_cliente: nome.trim(),
+        telefone_cliente: telefone.replace(/\D/g, ''),
         observacoes: observacoes.trim() || null,
         itens: toPedidoMesaItens(items),
       });
@@ -92,18 +102,34 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
           {step === 'checkout' && (
             <div className="grid gap-5">
               <p className="rounded-2xl border border-secondary/20 bg-secondary/10 p-4 text-sm text-foreground">
-                Seu pedido vai direto para o caixa e é servido na <strong>{mesaNome}</strong>. O pagamento é feito no caixa ao final.
+                Seu pedido vai direto para o caixa e é servido na <strong>{mesaNome}</strong>. O pedido só vale depois que o atendente confirmar. O pagamento é feito no caixa ao final.
               </p>
               <div className="space-y-2">
-                <Label htmlFor="mesa-nome">Seu nome (opcional)</Label>
+                <Label htmlFor="mesa-nome">Seu nome *</Label>
                 <Input
                   id="mesa-nome"
                   value={nome}
                   maxLength={60}
+                  required
                   autoComplete="given-name"
                   onChange={(event) => setNome(event.target.value)}
                   placeholder="Para chamarmos você"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mesa-telefone">Seu telefone (com DDD) *</Label>
+                <Input
+                  id="mesa-telefone"
+                  type="tel"
+                  inputMode="tel"
+                  value={telefone}
+                  maxLength={20}
+                  required
+                  autoComplete="tel"
+                  onChange={(event) => setTelefone(event.target.value)}
+                  placeholder="(73) 99999-9999"
+                />
+                <p className="text-xs text-muted-foreground">Usado só pelo atendente para confirmar seu pedido.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mesa-observacoes">Observações</Label>
@@ -122,8 +148,8 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
           {step === 'enviado' && (
             <div className="py-10 text-center">
               <CheckCircle2 className="mx-auto h-14 w-14 text-secondary" aria-hidden="true" />
-              <p className="mt-4 font-display text-3xl font-bold text-secondary">Pedido nº {pedidoNumero} recebido!</p>
-              <p className="mt-2 text-sm text-muted-foreground">Já está no caixa. Acompanhe o preparo em "Minha conta".</p>
+              <p className="mt-4 font-display text-3xl font-bold text-secondary">Pedido nº {pedidoNumero} enviado!</p>
+              <p className="mt-2 text-sm text-muted-foreground">Aguarde a confirmação do atendente. Acompanhe em "Minha conta".</p>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
                 <Button
                   variant="secondary"
@@ -156,7 +182,7 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
               </Button>
             ) : (
               <div className="space-y-3">
-                <Button variant="hero" size="lg" className="w-full rounded-full font-black" onClick={handleEnviar} disabled={submitting}>
+                <Button variant="hero" size="lg" className="w-full rounded-full font-black" onClick={handleEnviar} disabled={submitting || !contatoValido}>
                   {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Send className="mr-2 h-5 w-5" />}
                   {submitting ? 'Enviando...' : 'Enviar pedido para o caixa'}
                 </Button>

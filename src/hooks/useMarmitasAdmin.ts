@@ -13,7 +13,7 @@ import {
 } from '@/features/integrations/marmitas-api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/query-client';
 import { queryKeys } from '@/lib/query-keys';
-import type { Categoria, Marmita, MarmitaAdminListItem } from '@/types/product';
+import type { Categoria, Marmita, MarmitaAdminListItem, MarmitaFiltros } from '@/types/product';
 
 const ONE_MINUTE = 60 * 1000;
 
@@ -34,8 +34,8 @@ function sortMarmitasByName<T extends Pick<MarmitaAdminListItem, 'id' | 'nome'>>
   });
 }
 
-async function fetchMarmitasPage(page: number) {
-  const result = await fetchMarmitasAdminPageN8n(page, DEFAULT_PAGE_SIZE);
+async function fetchMarmitasPage(page: number, filtros: MarmitaFiltros) {
+  const result = await fetchMarmitasAdminPageN8n(page, DEFAULT_PAGE_SIZE, filtros);
 
   return {
     ...result,
@@ -60,12 +60,12 @@ export function useMarmitaDetailQuery(marmitaId: string | null, enabled = true) 
   });
 }
 
-export function useMarmitasAdmin(page = 1) {
+export function useMarmitasAdmin(page = 1, filtros: MarmitaFiltros = {}) {
   const queryClient = useQueryClient();
 
   const marmitasQuery = useQuery({
-    queryKey: queryKeys.admin.marmitasList(page),
-    queryFn: () => fetchMarmitasPage(page),
+    queryKey: queryKeys.admin.marmitasList(page, filtros),
+    queryFn: () => fetchMarmitasPage(page, filtros),
     staleTime: ONE_MINUTE,
     placeholderData: keepPreviousData,
   });

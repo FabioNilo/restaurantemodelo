@@ -1,3 +1,5 @@
+import type { MarmitaFiltros } from '@/types/product';
+
 export const queryKeys = {
   public: {
     catalogo: ['public', 'catalogo'] as const,
@@ -6,7 +8,7 @@ export const queryKeys = {
   },
   admin: {
     categorias: ['admin', 'categorias'] as const,
-    marmitasList: (page: number) => ['admin', 'marmitas', 'list', page] as const,
+    marmitasList: (page: number, filtros?: MarmitaFiltros) => ['admin', 'marmitas', 'list', page, filtros ?? {}] as const,
     marmitaDetail: (marmitaId: string | null) => ['admin', 'marmitas', 'detail', marmitaId] as const,
     pedidosList: (
       page: number,

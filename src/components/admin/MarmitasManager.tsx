@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMarmitasAdmin } from '@/hooks/useMarmitasAdmin';
-import { Marmita } from '@/types/product';
+import { Marmita, SEM_CATEGORIA } from '@/types/product';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getDefaultCategoryOrder, sortCategoriesByDisplayOrder } from '@/lib/product-category';
 import { DEFAULT_PAGE_SIZE } from '@/lib/query-client';
@@ -20,7 +21,9 @@ import {
   Loader2,
   RefreshCw,
   Package,
-  Tag
+  Search,
+  Tag,
+  X
 } from 'lucide-react';
 
 function slugifyCategoriaId(nome: string) {
@@ -34,7 +37,46 @@ function slugifyCategoriaId(nome: string) {
 
 export function MarmitasManager() {
   const { toast } = useToast();
-  const [page, setPage] = useState(1);
+  // Busca, categoria e página ficam na URL: ao voltar da edição, a lista continua filtrada.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const busca = searchParams.get('q') ?? '';
+  const categoriaFiltro = searchParams.get('cat') ?? '';
+  const page = Math.max(1, Number(searchParams.get('pagina')) || 1);
+  const [buscaDigitada, setBuscaDigitada] = useState(busca);
+
+  const atualizarParams = (mudancas: Record<string, string | null>) => {
+    setSearchParams(
+      (atual) => {
+        const proximo = new URLSearchParams(atual);
+        for (const [chave, valor] of Object.entries(mudancas)) {
+          if (valor) proximo.set(chave, valor);
+          else proximo.delete(chave);
+        }
+        return proximo;
+      },
+      { replace: true }
+    );
+  };
+
+  const setPage = (valor: number | ((atual: number) => number)) => {
+    const proxima = typeof valor === 'function' ? valor(page) : valor;
+    atualizarParams({ pagina: proxima > 1 ? String(proxima) : null });
+  };
+
+  // Espera a pessoa parar de digitar antes de buscar (e volta para a página 1).
+  useEffect(() => {
+    if (buscaDigitada.trim() === busca) return;
+    const timer = window.setTimeout(() => atualizarParams({ q: buscaDigitada.trim() || null, pagina: null }), 300);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buscaDigitada]);
+
+  const filtrando = !!busca || !!categoriaFiltro;
+  const limparFiltros = () => {
+    setBuscaDigitada('');
+    atualizarParams({ q: null, cat: null, pagina: null });
+  };
+
   const {
     marmitas,
     totalCount,
@@ -46,7 +88,7 @@ export function MarmitasManager() {
     createCategoria,
     updateCategoria,
     deleteCategoria
-  } = useMarmitasAdmin(page);
+  } = useMarmitasAdmin(page, { busca, categoria_id: categoriaFiltro });
   const navigate = useNavigate();
 
   const [deleteItem, setDeleteItem] = useState<Marmita | null>(null);
@@ -64,6 +106,7 @@ export function MarmitasManager() {
     if (page > totalPages) {
       setPage(totalPages);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, totalPages]);
 
   const handleOpenCreate = () => {
@@ -351,12 +394,57 @@ export function MarmitasManager() {
             <Package className="h-5 w-5" />
             Cardápio
           </CardTitle>
-          <CardDescription>
-            {totalCount} produto(s) cadastrado(s)
+          <CardDescription aria-live="polite">
+            {filtrando ? `${totalCount} produto(s) encontrado(s)` : `${totalCount} produto(s) cadastrado(s)`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {marmitas.length === 0 ? (
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="search"
+                value={buscaDigitada}
+                onChange={(event) => setBuscaDigitada(event.target.value)}
+                placeholder="Buscar produto pelo nome"
+                aria-label="Buscar produto pelo nome"
+                className="pl-9"
+              />
+            </div>
+            <Select
+              value={categoriaFiltro || 'all'}
+              onValueChange={(valor) => atualizarParams({ cat: valor === 'all' ? null : valor, pagina: null })}
+            >
+              <SelectTrigger className="sm:w-56" aria-label="Filtrar por categoria">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {orderedCategorias.map((categoria) => (
+                  <SelectItem key={categoria.id} value={categoria.id}>
+                    {categoria.nome}
+                  </SelectItem>
+                ))}
+                <SelectItem value={SEM_CATEGORIA}>Sem categoria</SelectItem>
+              </SelectContent>
+            </Select>
+            {filtrando && (
+              <Button variant="ghost" onClick={limparFiltros} className="gap-1">
+                <X className="h-4 w-4" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+
+          {marmitas.length === 0 && filtrando ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <Search className="mx-auto mb-4 h-12 w-12 opacity-50" />
+              <p>Nenhum produto encontrado com esses filtros.</p>
+              <Button variant="outline" onClick={limparFiltros} className="mt-4">
+                Limpar filtros
+              </Button>
+            </div>
+          ) : marmitas.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum produto cadastrado</p>

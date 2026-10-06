@@ -10,7 +10,21 @@ import { erroFechamento, fromCents, pagamentoSchema, toCents } from './pagamento
 
 export const MAX_PEDIDOS_POR_MINUTO = 6;
 
-export const STATUS_PEDIDO = ['novo', 'em_preparo', 'entregue', 'cancelado'] as const;
+// pendente = aguardando o atendente confirmar; novo = recebido (confirmado); sem cozinha, não há "em preparo".
+// 'em_preparo' só existe em dados antigos (a migration 007 converte para 'novo').
+export const STATUS_PEDIDO = ['pendente', 'novo', 'entregue', 'cancelado'] as const;
+// O atendente só confirma, entrega ou cancela: pedido nunca volta a "pendente".
+const STATUS_ATUALIZAVEIS = ['novo', 'entregue', 'cancelado'] as const;
+// Pedido pendente ainda não vale na conta: só entra no total depois de confirmado.
+// De quais status cada mudança é permitida (confirmar -> entregar; cancelar só antes de entregar).
+const STATUS_ANTERIORES: Record<(typeof STATUS_ATUALIZAVEIS)[number], string[]> = {
+  novo: ['pendente'],
+  entregue: ['novo', 'em_preparo'],
+  cancelado: ['pendente', 'novo', 'em_preparo'],
+};
+const FORA_DO_TOTAL = ['cancelado', 'pendente'];
+const contaNoTotal = (status: string) => !FORA_DO_TOTAL.includes(status);
+const emAndamento = (status: string) => status === 'pendente' || status === 'novo' || status === 'em_preparo';
 
 export interface ItemPedidoMesa {
   produto_id: string;
@@ -34,7 +48,12 @@ interface MesaRow {
 // --- Validação ---
 
 export const pedidoMesaSchema = z.object({
-  nome_cliente: z.string().trim().max(60).nullish(),
+  // Nome e telefone são obrigatórios: o atendente confirma o pedido com quem pediu.
+  nome_cliente: z.string().trim().min(2, 'Informe seu nome.').max(60),
+  telefone_cliente: z
+    .string()
+    .transform((value) => value.replace(/\D/g, ''))
+    .refine((value) => value.length >= 10 && value.length <= 11, 'Informe um telefone válido com DDD.'),
   observacoes: z.string().trim().max(300).nullish(),
   itens: z
     .array(
@@ -60,7 +79,7 @@ export const mesaUpdateSchema = z.object({
 
 export const statusPedidoSchema = z.object({
   id: z.string().uuid(),
-  status: z.enum(STATUS_PEDIDO),
+  status: z.enum(STATUS_ATUALIZAVEIS),
 });
 
 // Um ou mais pagamentos (Pix/Débito/Crédito) que somam exatamente o total da conta.
@@ -172,7 +191,7 @@ export async function getMesaPublica(token: string) {
     mesa: { numero: mesa.numero, nome: mesa.nome, ativa: mesa.ativa },
     conta:
       lista.length > 0
-        ? { pedidos: lista, total: money(lista.filter((p) => p.status !== 'cancelado').reduce((s, p) => s + p.valor_total, 0)) }
+        ? { pedidos: lista, total: money(lista.filter((p) => contaNoTotal(p.status)).reduce((s, p) => s + p.valor_total, 0)) }
         : null,
   };
 }
@@ -209,10 +228,10 @@ export async function criarPedidoMesa(token: string, input: z.infer<typeof pedid
          select id from contas_mesa where mesa_id = $1 and status = 'aberta'
          limit 1
        )
-       insert into pedidos_mesa (conta_id, mesa_id, nome_cliente, observacoes, itens, valor_total)
-       select id, $1, $2, $3, $4::jsonb, $5 from conta
+       insert into pedidos_mesa (conta_id, mesa_id, nome_cliente, telefone_cliente, observacoes, itens, valor_total)
+       select id, $1, $2, $6, $3, $4::jsonb, $5 from conta
        returning numero, status, valor_total`,
-      [mesa.id, input.nome_cliente || null, input.observacoes || null, JSON.stringify(itens), total]
+      [mesa.id, input.nome_cliente, input.observacoes || null, JSON.stringify(itens), total, input.telefone_cliente]
     );
 
   // Se outro pedido da mesma mesa abriu a conta no mesmo instante, a primeira
@@ -237,11 +256,11 @@ export async function listarMesas() {
     MesaRow & { total: string; pedidos: number; novos: number; em_andamento: number; conta_id: string | null; aberta_em: string | Date | null; ids_novos: string[] | null }
   >(
     `select m.id, m.numero, m.nome, m.token, m.ativa, m.created_at, c.id as conta_id, c.aberta_em,
-            coalesce(sum(p.valor_total) filter (where p.status <> 'cancelado'), 0) as total,
+            coalesce(sum(p.valor_total) filter (where p.status not in ('cancelado', 'pendente')), 0) as total,
             count(p.id)::int as pedidos,
-            count(p.id) filter (where p.status = 'novo')::int as novos,
-            count(p.id) filter (where p.status in ('novo', 'em_preparo'))::int as em_andamento,
-            array_agg(p.id::text) filter (where p.status = 'novo') as ids_novos
+            count(p.id) filter (where p.status = 'pendente')::int as novos,
+            count(p.id) filter (where p.status in ('pendente', 'novo', 'em_preparo'))::int as em_andamento,
+            array_agg(p.id::text) filter (where p.status = 'pendente') as ids_novos
        from mesas m
        left join contas_mesa c on c.mesa_id = m.id and c.status = 'aberta'
        left join pedidos_mesa p on p.conta_id = c.id
@@ -270,6 +289,7 @@ interface PedidoMesaRow {
   numero: string | number;
   status: string;
   nome_cliente: string | null;
+  telefone_cliente: string | null;
   observacoes: string | null;
   itens: ItemPedidoMesa[];
   valor_total: string | number;
@@ -282,6 +302,7 @@ function toPedidoMesa(row: PedidoMesaRow) {
     numero: Number(row.numero),
     status: row.status,
     nome_cliente: row.nome_cliente,
+    telefone_cliente: row.telefone_cliente,
     observacoes: row.observacoes,
     itens: row.itens,
     valor_total: money(row.valor_total),
@@ -290,7 +311,7 @@ function toPedidoMesa(row: PedidoMesaRow) {
 }
 
 const somaPedidos = (pedidos: Array<{ status: string; valor_total: number }>) =>
-  fromCents(pedidos.filter((p) => p.status !== 'cancelado').reduce((soma, p) => soma + toCents(p.valor_total), 0));
+  fromCents(pedidos.filter((p) => contaNoTotal(p.status)).reduce((soma, p) => soma + toCents(p.valor_total), 0));
 
 // Comanda da mesa: conta aberta com os pedidos e as últimas contas fechadas.
 export async function getDetalheMesa(id: number) {
@@ -325,7 +346,7 @@ export async function getDetalheMesa(id: number) {
   const pedidos = conta
     ? (
         await query<PedidoMesaRow>(
-          `select id, numero, status, nome_cliente, observacoes, itens, valor_total, created_at
+          `select id, numero, status, nome_cliente, telefone_cliente, observacoes, itens, valor_total, created_at
              from pedidos_mesa where conta_id = $1 order by created_at`,
           [conta.id]
         )
@@ -340,7 +361,7 @@ export async function getDetalheMesa(id: number) {
           aberta_em: new Date(conta.aberta_em).toISOString(),
           pedidos,
           total: somaPedidos(pedidos),
-          em_andamento: pedidos.filter((p) => p.status === 'novo' || p.status === 'em_preparo').length,
+          em_andamento: pedidos.filter((p) => emAndamento(p.status)).length,
         }
       : null,
     fechadas: fechadas.map((c) => ({
@@ -420,6 +441,7 @@ export async function getPainel() {
       numero: number;
       status: string;
       nome_cliente: string | null;
+      telefone_cliente: string | null;
       observacoes: string | null;
       itens: ItemPedidoMesa[];
       valor_total: number;
@@ -430,7 +452,7 @@ export async function getPainel() {
             coalesce(
               json_agg(
                 json_build_object(
-                  'id', p.id, 'numero', p.numero, 'status', p.status, 'nome_cliente', p.nome_cliente,
+                  'id', p.id, 'numero', p.numero, 'status', p.status, 'nome_cliente', p.nome_cliente, 'telefone_cliente', p.telefone_cliente,
                   'observacoes', p.observacoes, 'itens', p.itens, 'valor_total', p.valor_total, 'created_at', p.created_at
                 ) order by p.created_at
               ) filter (where p.id is not null),
@@ -464,7 +486,7 @@ export async function getPainel() {
         aberta_em: new Date(conta.aberta_em).toISOString(),
         mesa: { id: conta.mesa_id, numero: conta.mesa_numero, nome: conta.mesa_nome },
         pedidos,
-        total: money(pedidos.filter((p) => p.status !== 'cancelado').reduce((s, p) => s + p.valor_total, 0)),
+        total: money(pedidos.filter((p) => contaNoTotal(p.status)).reduce((s, p) => s + p.valor_total, 0)),
       };
     }),
     hoje: {
@@ -479,13 +501,13 @@ export async function atualizarStatusPedido(input: z.infer<typeof statusPedidoSc
   const rows = await query<{ id: string }>(
     `update pedidos_mesa p set status = $2, updated_at = now()
        from contas_mesa c
-      where p.id = $1 and c.id = p.conta_id and c.status = 'aberta'
+      where p.id = $1 and c.id = p.conta_id and c.status = 'aberta' and p.status = any($3::text[])
       returning p.id`,
-    [input.id, input.status]
+    [input.id, input.status, STATUS_ANTERIORES[input.status]]
   );
 
   if (rows.length === 0) {
-    throw new ApiError(404, 'Pedido não encontrado ou a conta já foi fechada.');
+    throw new ApiError(409, 'Pedido não encontrado, conta já fechada ou o status dele já mudou. Atualize a tela.');
   }
 
   return { id: input.id, status: input.status };
@@ -505,7 +527,7 @@ export async function fecharConta(input: z.infer<typeof fecharContaSchema>, usua
   const erro = erroFechamento({
     total,
     pagamentos: input.pagamentos,
-    pedidosEmAndamento: pedidos.filter((p) => p.status === 'novo' || p.status === 'em_preparo').length,
+    pedidosEmAndamento: pedidos.filter((p) => emAndamento(p.status)).length,
   });
 
   if (erro) {
@@ -517,14 +539,14 @@ export async function fecharConta(input: z.infer<typeof fecharContaSchema>, usua
   // e grava os pagamentos.
   const [fechada] = await query<{ id: string; valor_total: string }>(
     `with total_atual as (
-       select coalesce(sum(valor_total) filter (where status <> 'cancelado'), 0) as valor
+       select coalesce(sum(valor_total) filter (where status not in ('cancelado', 'pendente')), 0) as valor
          from pedidos_mesa where conta_id = $1
      ), fechada as (
        update contas_mesa c
           set status = 'fechada', fechada_em = now(), fechada_por = $2, valor_total = $3, forma_pagamento = $4
         where c.id = $1 and c.status = 'aberta'
           and (select valor from total_atual) = $3::numeric
-          and not exists (select 1 from pedidos_mesa p where p.conta_id = $1 and p.status in ('novo', 'em_preparo'))
+          and not exists (select 1 from pedidos_mesa p where p.conta_id = $1 and p.status in ('pendente', 'novo', 'em_preparo'))
         returning c.id, c.valor_total
      ), pagos as (
        insert into pagamentos (canal, conta_id, metodo, valor, registrado_por)

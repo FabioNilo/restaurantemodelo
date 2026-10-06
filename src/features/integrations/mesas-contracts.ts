@@ -1,6 +1,8 @@
 // Contratos dos pedidos pela mesa (QR code) — espelham server/mesas.ts.
 
-export type StatusPedidoMesa = 'novo' | 'em_preparo' | 'entregue' | 'cancelado';
+// pendente = aguardando o atendente confirmar; novo = recebido (confirmado). Sem cozinha, não há "em preparo":
+// 'em_preparo' só aparece em pedidos antigos e é tratado como recebido.
+export type StatusPedidoMesa = 'pendente' | 'novo' | 'em_preparo' | 'entregue' | 'cancelado';
 
 export interface ItemPedidoMesa {
   produto_id: string;
@@ -22,7 +24,8 @@ export interface MesaPublica {
 
 // O cliente manda só produto, opção e quantidade: o preço é calculado no servidor.
 export interface PedidoMesaRequest {
-  nome_cliente?: string | null;
+  nome_cliente: string;
+  telefone_cliente: string;
   observacoes?: string | null;
   itens: Array<{ produto_id: string; tamanho_codigo?: string | null; quantidade: number }>;
 }
@@ -53,6 +56,7 @@ export interface PedidoMesaPainel {
   numero: number;
   status: StatusPedidoMesa;
   nome_cliente: string | null;
+  telefone_cliente?: string | null;
   observacoes: string | null;
   itens: ItemPedidoMesa[];
   valor_total: number;
@@ -60,8 +64,9 @@ export interface PedidoMesaPainel {
 }
 
 export const STATUS_PEDIDO_MESA_LABELS: Record<StatusPedidoMesa, string> = {
+  pendente: 'Aguardando confirmação',
   novo: 'Recebido',
-  em_preparo: 'Em preparo',
+  em_preparo: 'Recebido',
   entregue: 'Entregue',
   cancelado: 'Cancelado',
 };
