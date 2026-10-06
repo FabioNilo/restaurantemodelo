@@ -57,27 +57,27 @@ export default function CaixaPage() {
           <h1 className="font-display text-4xl font-bold text-secondary">Caixa</h1>
           <p className="text-sm text-muted-foreground">Recebimentos de {titulo}: contas de mesa fechadas e deliveries entregues.</p>
         </div>
-        <Button onClick={exportar} disabled={!movimentos.data || exportando || periodoInvalido}>
+        <Button onClick={exportar} disabled={!movimentos.data || exportando || periodoInvalido} className="h-11 w-full sm:h-10 sm:w-auto">
           {exportando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
           Exportar Excel
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4 shadow-soft">
-        <div className="flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="group" aria-label="Atalhos de período">
+      <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-soft sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="-mx-1 flex gap-1 overflow-x-auto rounded-xl bg-muted p-1 scrollbar-none sm:mx-0 sm:flex-wrap" role="group" aria-label="Atalhos de período">
           {ATALHOS_PERIODO.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => escolherAtalho(a.id)}
               aria-pressed={atalho === a.id}
-              className={cn('rounded-lg px-3 py-1.5 text-sm font-medium transition', atalho === a.id ? 'bg-secondary text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+              className={cn('shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition', atalho === a.id ? 'bg-secondary text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}
             >
               {a.label}
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end">
           <div className="space-y-1">
             <Label htmlFor="caixa-de" className="text-xs">
               De
@@ -91,7 +91,7 @@ export default function CaixaPage() {
                 setAtalho(null);
                 setPeriodo((p) => ({ ...p, de: e.target.value }));
               }}
-              className="h-9 w-40"
+              className="h-11 w-full sm:h-9 sm:w-40"
             />
           </div>
           <div className="space-y-1">
@@ -107,7 +107,7 @@ export default function CaixaPage() {
                 setAtalho(null);
                 setPeriodo((p) => ({ ...p, ate: e.target.value }));
               }}
-              className="h-9 w-40"
+              className="h-11 w-full sm:h-9 sm:w-40"
             />
           </div>
         </div>
@@ -132,11 +132,11 @@ export default function CaixaPage() {
         {FORMAS_PAGAMENTO.map((forma) => {
           const Icone = ICONES[forma];
           return (
-            <div key={forma} className="rounded-2xl border bg-card p-5 shadow-soft">
+            <div key={forma} className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Icone className="h-4 w-4 text-gold-ink" /> {FORMA_PAGAMENTO_LABELS[forma]}
               </p>
-              <p className="mt-1 text-2xl font-semibold">{formatBRL(resumo.porForma[forma])}</p>
+              <p className="mt-1 text-xl font-semibold sm:text-2xl">{formatBRL(resumo.porForma[forma])}</p>
             </div>
           );
         })}
@@ -147,7 +147,7 @@ export default function CaixaPage() {
           const lista = (movimentos.data ?? []).filter((m) => m.canal === canal);
           const Icone = canal === 'mesa' ? Armchair : Bike;
           return (
-            <section key={canal} className="rounded-2xl border bg-card p-5 shadow-soft">
+            <section key={canal} className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
               <h2 className="mb-3 flex items-center justify-between font-display text-2xl font-bold text-secondary">
                 <span className="flex items-center gap-2">
                   <Icone className="h-5 w-5 text-gold-ink" /> {canal === 'mesa' ? 'Mesas' : 'Delivery'}
@@ -165,19 +165,21 @@ export default function CaixaPage() {
               ) : lista.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum recebimento no período.</p>
               ) : (
-                <ul className="max-h-96 divide-y overflow-y-auto text-sm">
+                // No celular, sem rolagem dentro da página (rolagem aninhada atrapalha o polegar).
+                <ul className="divide-y text-sm lg:max-h-96 lg:overflow-y-auto">
                   {lista.map((m) => (
-                    <li key={m.id} className="flex flex-wrap items-center gap-3 py-2">
-                      <span className="w-28 text-muted-foreground">
+                    <li key={m.id} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-0.5 py-3 sm:flex sm:flex-wrap sm:py-2">
+                      <span className="order-3 text-xs text-muted-foreground sm:order-none sm:w-28 sm:text-sm">
                         {periodo.de === periodo.ate ? '' : `${dataBR(m.data).slice(0, 5)} `}
                         {m.data.slice(11, 16)}
+                        <span className="sm:hidden"> · {FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
                       </span>
-                      <span className="flex-1 truncate font-medium">
+                      <span className="order-1 min-w-0 truncate font-medium sm:order-none sm:flex-1">
                         {m.referencia}
                         {m.cliente ? <span className="font-normal text-muted-foreground"> · {m.cliente}</span> : null}
                       </span>
-                      <span className="text-muted-foreground">{FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
-                      <span className="flex flex-col items-end">
+                      <span className="hidden text-muted-foreground sm:inline">{FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
+                      <span className="order-2 row-span-2 flex flex-col items-end sm:order-none sm:row-span-1">
                         <strong className="tabular-nums">{formatBRL(m.valor)}</strong>
                         {m.taxa_entrega > 0 && (
                           <span className="text-xs text-muted-foreground">entrega {formatBRL(m.taxa_entrega)}</span>

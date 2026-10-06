@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Loader2, PackageCheck, RefreshCw, Save } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, Minus, PackageCheck, Plus, RefreshCw, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +52,10 @@ export function GestorStockManager() {
     () => marmitas.filter((item) => Number(drafts[item.id] ?? item.estoque ?? 0) !== Number(item.estoque ?? 0)),
     [drafts, marmitas]
   );
+
+  // Botões − / + do celular: mais fácil que digitar num campo numérico pequeno.
+  const ajustarEstoque = (id: string, atual: string, delta: number) =>
+    setDrafts((current) => ({ ...current, [id]: String(Math.max(0, normalizeStock(atual) + delta)) }));
 
   const handleSave = async (id: string) => {
     const estoque = normalizeStock(drafts[id]);
@@ -140,7 +144,7 @@ export function GestorStockManager() {
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Exportar planilha
           </Button>
-          <Button variant="outline" onClick={refetch} className="gap-2">
+          <Button variant="outline" onClick={refetch} className="h-11 gap-2 sm:h-10">
             <RefreshCw className="h-4 w-4" />
             Atualizar
           </Button>
@@ -153,7 +157,59 @@ export function GestorStockManager() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="overflow-x-auto">
+            <ul className="divide-y rounded-xl border md:hidden">
+              {marmitas.map((item) => {
+                const draftValue = drafts[item.id] ?? String(item.estoque ?? 0);
+                const estoque = normalizeStock(draftValue);
+                const isAvailable = getAvailabilityFromStock(estoque) && item.disponivel !== false;
+                const changed = Number(item.estoque ?? 0) !== estoque;
+                const lucro = calcularLucro(Number(item.preco), item.custo);
+
+                return (
+                  <li key={item.id} className="space-y-3 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{item.nome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Venda <span className="font-semibold text-gold-ink">{formatCurrency(item.preco)}</span>
+                          {lucro.lucro !== null && (
+                            <span className={lucro.lucro < 0 ? 'text-destructive' : ''}>
+                              {' '}· lucro {formatCurrency(lucro.lucro)} ({String(lucro.margem ?? 0).replace('.', ',')}%)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <Badge variant={isAvailable ? 'default' : 'secondary'} className="shrink-0">
+                        {isAvailable ? 'Disponível' : 'Indisponível'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => ajustarEstoque(item.id, draftValue, -1)} aria-label={`Diminuir estoque de ${item.nome}`}>
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={draftValue}
+                        onChange={(event) => setDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                        className="h-11 w-20 text-center text-base"
+                        aria-label={`Estoque de ${item.nome}`}
+                      />
+                      <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => ajustarEstoque(item.id, draftValue, 1)} aria-label={`Aumentar estoque de ${item.nome}`}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button onClick={() => handleSave(item.id)} disabled={!changed || savingId === item.id} className="ml-auto h-11 gap-2">
+                        {savingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : changed ? <Save className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -250,6 +306,7 @@ export function GestorStockManager() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 sm:h-9"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={page === 1}
                 >
@@ -258,6 +315,7 @@ export function GestorStockManager() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 sm:h-9"
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   disabled={page >= totalPages}
                 >

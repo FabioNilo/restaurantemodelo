@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCart } from '@/context/CartContext';
-import { createPedidoMesa } from '@/features/integrations/marmitas-api';
+import { createPedidoMesa, createPedidoMesaAtendente } from '@/features/integrations/marmitas-api';
 import { toast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { toPedidoMesaItens } from '@/lib/mesa';
@@ -19,6 +19,8 @@ interface MesaCartModalProps {
   token: string;
   mesaNome: string;
   onVerConta: () => void;
+  // Atendente logado no painel lançando o pedido: sem telefone, nome opcional, já confirmado.
+  atendente?: boolean;
 }
 
 function formatCurrency(value: number) {
@@ -27,7 +29,7 @@ function formatCurrency(value: number) {
 
 // Carrinho da mesa (QR code): sem endereço nem WhatsApp — o pedido vai direto
 // para o painel do caixa. O fluxo de delivery continua no CartModal.
-export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: MesaCartModalProps) {
+export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta, atendente = false }: MesaCartModalProps) {
   const { items, totalPrice, clearCart } = useCart();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<'cart' | 'checkout' | 'enviado'>('cart');
@@ -45,7 +47,7 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
   };
 
   const telefoneValido = /^\d{10,11}$/.test(telefone.replace(/\D/g, ''));
-  const contatoValido = nome.trim().length >= 2 && telefoneValido;
+  const contatoValido = atendente || (nome.trim().length >= 2 && telefoneValido);
 
   const handleEnviar = async () => {
     if (!contatoValido) {
@@ -56,12 +58,18 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
     setSubmitting(true);
 
     try {
-      const pedido = await createPedidoMesa(token, {
-        nome_cliente: nome.trim(),
-        telefone_cliente: telefone.replace(/\D/g, ''),
-        observacoes: observacoes.trim() || null,
-        itens: toPedidoMesaItens(items),
-      });
+      const pedido = atendente
+        ? await createPedidoMesaAtendente(token, {
+            nome_cliente: nome.trim() || null,
+            observacoes: observacoes.trim() || null,
+            itens: toPedidoMesaItens(items),
+          })
+        : await createPedidoMesa(token, {
+            nome_cliente: nome.trim(),
+            telefone_cliente: telefone.replace(/\D/g, ''),
+            observacoes: observacoes.trim() || null,
+            itens: toPedidoMesaItens(items),
+          });
 
       clearCart();
       setObservacoes('');
@@ -102,20 +110,21 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
           {step === 'checkout' && (
             <div className="grid gap-5">
               <p className="rounded-2xl border border-secondary/20 bg-secondary/10 p-4 text-sm text-foreground">
-                Seu pedido vai direto para o caixa e é servido na <strong>{mesaNome}</strong>. O pedido só vale depois que o atendente confirmar. O pagamento é feito no caixa ao final.
+                Seu pedido vai direto para o caixa e é servido na <strong>{mesaNome}</strong>. {atendente ? 'Pedido da equipe: entra já confirmado na comanda.' : 'O pedido só vale depois que o atendente confirmar. O pagamento é feito no caixa ao final.'}
               </p>
               <div className="space-y-2">
-                <Label htmlFor="mesa-nome">Seu nome *</Label>
+                <Label htmlFor="mesa-nome">{atendente ? 'Nome de quem pediu (opcional)' : 'Seu nome *'}</Label>
                 <Input
                   id="mesa-nome"
                   value={nome}
                   maxLength={60}
-                  required
+                  required={!atendente}
                   autoComplete="given-name"
                   onChange={(event) => setNome(event.target.value)}
                   placeholder="Para chamarmos você"
                 />
               </div>
+              {!atendente && (
               <div className="space-y-2">
                 <Label htmlFor="mesa-telefone">Seu telefone (com DDD) *</Label>
                 <Input
@@ -131,6 +140,7 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
                 />
                 <p className="text-xs text-muted-foreground">Usado só pelo atendente para confirmar seu pedido.</p>
               </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="mesa-observacoes">Observações</Label>
                 <Textarea
@@ -148,8 +158,8 @@ export function MesaCartModal({ isOpen, onClose, token, mesaNome, onVerConta }: 
           {step === 'enviado' && (
             <div className="py-10 text-center">
               <CheckCircle2 className="mx-auto h-14 w-14 text-secondary" aria-hidden="true" />
-              <p className="mt-4 font-display text-3xl font-bold text-secondary">Pedido nº {pedidoNumero} enviado!</p>
-              <p className="mt-2 text-sm text-muted-foreground">Aguarde a confirmação do atendente. Acompanhe em "Minha conta".</p>
+              <p className="mt-4 font-display text-3xl font-bold text-secondary">Pedido nº {pedidoNumero} {atendente ? 'lançado' : 'enviado'}!</p>
+              <p className="mt-2 text-sm text-muted-foreground">{atendente ? 'Já está confirmado na comanda da mesa.' : 'Aguarde a confirmação do atendente. Acompanhe em "Minha conta".'}</p>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
                 <Button
                   variant="secondary"

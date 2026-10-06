@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Armchair, Clock, Loader2, Plus, Printer, QrCode, Receipt, RefreshCw, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { createMesaAdmin, fetchMesasAdmin, regenerarTokenMesaAdmin, updateMesaAdmin } from '@/features/integrations/marmitas-api';
 import { useAlertaNovosPedidos } from '@/hooks/useAlertaNovosPedidos';
 import { toast } from '@/hooks/use-toast';
+import { useConfirmar } from '@/hooks/useConfirmar';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatBRL } from '@/lib/pagamentos';
 import { queryKeys } from '@/lib/query-keys';
@@ -23,6 +24,8 @@ export default function MesasPage() {
   const { permissions } = useAuth();
   const isAdmin = permissions.role === 'admin';
   const [numero, setNumero] = useState('');
+  const navigate = useNavigate();
+  const { confirmar, dialogo } = useConfirmar();
 
   const mesas = useQuery({
     queryKey: queryKeys.admin.mesas,
@@ -81,7 +84,7 @@ export default function MesasPage() {
           </Button>
           {isAdmin && (
             <>
-              <Button variant="outline" size="sm" onClick={() => window.open('/admin/mesas/qr', '_blank')} disabled={!lista.length}>
+              <Button variant="outline" size="sm" onClick={() => navigate('/admin/mesas/qr')} disabled={!lista.length}>
                 <Printer className="mr-1 h-4 w-4" /> Imprimir QR
               </Button>
               <form
@@ -154,28 +157,34 @@ export default function MesasPage() {
               </Link>
 
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t p-3 text-sm">
-                <Button asChild size="sm" variant="secondary" className="text-primary">
+                <Button asChild size="sm" variant="secondary" className="h-11 flex-1 text-primary sm:h-9 sm:flex-none">
                   <Link to={`/admin/mesas/${mesa.id}`}>
                     <Receipt className="mr-1 h-4 w-4" /> Comanda
                   </Link>
                 </Button>
                 {isAdmin && (
                   <>
-                    <Button size="sm" variant="ghost" onClick={() => window.open(`/admin/mesas/qr?id=${mesa.id}`, '_blank')}>
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/mesas/qr?id=${mesa.id}`)}>
                       <QrCode className="mr-1 h-4 w-4" /> QR
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       aria-label={`Gerar novo QR da ${mesa.nome}`}
-                      onClick={() => {
-                        if (window.confirm(`Gerar um novo QR para a ${mesa.nome}? O QR impresso atual vai parar de funcionar.`)) regenerar.mutate(mesa.id);
+                      onClick={async () => {
+                        const ok = await confirmar({
+                          titulo: `Gerar um novo QR para a ${mesa.nome}?`,
+                          descricao: 'O QR impresso atual vai parar de funcionar.',
+                          confirmar: 'Gerar novo QR',
+                          perigo: true,
+                        });
+                        if (ok) regenerar.mutate(mesa.id);
                       }}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                     <button
-                      className="ml-auto px-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                      className="ml-auto min-h-11 px-2 text-xs font-medium text-muted-foreground hover:text-foreground sm:min-h-0"
                       onClick={() => alterar.mutate({ id: mesa.id, ativa: !mesa.ativa })}
                     >
                       {mesa.ativa ? 'Desativar' : 'Ativar'}
@@ -187,6 +196,7 @@ export default function MesasPage() {
           );
         })}
       </div>
+      {dialogo}
     </div>
   );
 }

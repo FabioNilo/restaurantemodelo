@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { Loader2, Printer } from 'lucide-react';
+import { ArrowLeft, Loader2, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { fetchMesasAdmin } from '@/features/integrations/marmitas-api';
@@ -40,6 +40,7 @@ export default function MesasQrPrint() {
   const { user, loading, permissions } = useAuth();
   // ?id=3 imprime só o QR da mesa 3 (botão "QR" no cartão da mesa).
   const somenteId = Number(useSearchParams()[0].get('id')) || null;
+  const navigate = useNavigate();
   const mesas = useQuery({
     queryKey: queryKeys.admin.mesas,
     queryFn: fetchMesasAdmin,
@@ -66,11 +67,15 @@ export default function MesasQrPrint() {
       `}</style>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div>
+        {/* Abre na mesma aba (o painel não usa abas novas): volta para as mesas. */}
+        <Button variant="ghost" onClick={() => navigate('/admin/mesas')} className="h-11 w-full justify-start px-2 sm:w-auto">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar às mesas
+        </Button>
+        <div className="w-full sm:w-auto sm:flex-1">
           <h1 className="font-display text-3xl font-bold text-secondary">QR codes das mesas</h1>
           <p className="text-sm text-muted-foreground">Só as mesas ativas. Imprima em A4 (6 por folha), recorte e deixe em cada mesa.</p>
         </div>
-        <Button onClick={() => window.print()} disabled={ativas.length === 0}>
+        <Button onClick={() => window.print()} disabled={ativas.length === 0} className="h-11 w-full sm:h-10 sm:w-auto">
           <Printer className="mr-2 h-4 w-4" /> Imprimir
         </Button>
       </div>
@@ -78,7 +83,7 @@ export default function MesasQrPrint() {
       {mesas.isLoading && <Loader2 className="mx-auto h-8 w-8 animate-spin text-gold-ink" />}
       {mesas.error && <p className="text-destructive">{getApiErrorMessage(mesas.error)}</p>}
 
-      <div className="grid grid-cols-2 gap-6 print:gap-4">
+      <div className="grid gap-6 sm:grid-cols-2 print:grid-cols-2 print:gap-4">
         {ativas.map((mesa) => (
           <QrCartao key={mesa.id} mesa={mesa} />
         ))}

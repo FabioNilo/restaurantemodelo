@@ -1,4 +1,5 @@
 import { BRAND } from '@/lib/brand';
+import { entregarArquivo } from '@/lib/entregar-arquivo';
 import { agruparPorPessoa, resumirConta, type ItemResumo } from '@/lib/mesa-conta';
 
 interface ThermalLabelItem {
@@ -306,15 +307,7 @@ function buildPdf(contentStream: string, pageHeight: number) {
 
 function downloadReceipt(lines: ReceiptLine[], fileName: string) {
   const layout = prepareLayout(lines);
-  const blob = buildPdf(buildContentStream(layout), layout.pageHeight);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  void entregarArquivo(buildPdf(buildContentStream(layout), layout.pageHeight), fileName);
 }
 
 export function downloadPedidoThermalLabelPdf(pedido: ThermalLabelPedido, items: ThermalLabelItem[]) {

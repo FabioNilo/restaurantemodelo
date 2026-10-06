@@ -41,7 +41,7 @@ function simularBanco({ mesa = MESA, recentes = 0 }: Cenario = {}) {
     if (text.includes('from produtos where id = any')) return PRODUTOS.filter((p) => (params[0] as string[]).includes(p.id));
     if (text.includes('insert into pedidos_mesa')) {
       inserts.push(params);
-      return [{ numero: '12', status: 'pendente', valor_total: String(params[4]) }];
+      return [{ numero: '12', status: String(params[6]), valor_total: String(params[4]) }];
     }
     if (text.includes('from usuarios_admin where id')) {
       return [
@@ -106,6 +106,7 @@ describe('POST /api/mesas/:token/pedidos', () => {
     // Nome e telefone (só dígitos) vão junto, para o atendente confirmar com a pessoa.
     expect(inserts[0][1]).toBe('Maria');
     expect(inserts[0][5]).toBe('73999991234');
+    expect(inserts[0][6]).toBe('pendente');
   });
 
   it('exige nome e telefone válidos', async () => {
@@ -155,6 +156,29 @@ describe('permissões do caixa', () => {
     expect((await postAdmin('u-gestor', 'gestor', { action: 'mesas.regenerarToken', id: 1 })).status).toBe(403);
     expect((await postAdmin('u-gestor', 'gestor', { action: 'contas.cancelar', id: crypto.randomUUID() })).status).toBe(403);
     expect((await postAdmin('u-gestor', 'gestor', { action: 'mesas.painel' })).status).toBe(200);
+  });
+
+  it('pedido lançado pelo atendente entra confirmado, sem telefone e com nome opcional', async () => {
+    const inserts = simularBanco();
+    const itens = [{ produto_id: 'cappuccino', quantidade: 1 }];
+
+    const response = await postAdmin('u-gestor', 'gestor', { action: 'pedidosMesa.lancar', token: TOKEN, itens });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.status).toBe('novo');
+    expect(inserts[0][1]).toBeNull();
+    expect(inserts[0][5]).toBeNull();
+    expect(inserts[0][6]).toBe('novo');
+  });
+
+  it('sem login ninguém lança pedido confirmado', async () => {
+    simularBanco();
+    const response = await app.request('/api/massas/admin/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'pedidosMesa.lancar', token: TOKEN, itens: [{ produto_id: 'cappuccino', quantidade: 1 }] }),
+    });
+    expect(response.status).toBe(401);
   });
 
   it('só aceita Pix, Débito ou Crédito para fechar a conta', async () => {

@@ -30,6 +30,13 @@ export interface PedidoMesaRequest {
   itens: Array<{ produto_id: string; tamanho_codigo?: string | null; quantidade: number }>;
 }
 
+// Pedido lançado pela equipe no painel: nome opcional, sem telefone, entra já confirmado.
+export interface PedidoMesaAtendenteRequest {
+  nome_cliente?: string | null;
+  observacoes?: string | null;
+  itens: PedidoMesaRequest['itens'];
+}
+
 export interface PedidoMesaResponse {
   numero: number;
   status: StatusPedidoMesa;

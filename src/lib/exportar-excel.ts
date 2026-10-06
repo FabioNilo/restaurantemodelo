@@ -1,8 +1,10 @@
 import type { MovimentoCaixa } from '@/features/integrations/painel-contracts';
 import { CABECALHO_ESTOQUE, linhasEstoque, nomeArquivoEstoque } from '@/lib/estoque-lucro';
 import type { Categoria, MarmitaAdminListItem } from '@/types/product';
+import { entregarArquivo } from '@/lib/entregar-arquivo';
 import { nomeArquivoFluxoCaixa, planilhasFluxoCaixa } from '@/lib/fluxo-caixa';
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const MOEDA = '"R$" #,##0.00';
 const VERDE = 'FF1E3A22';
 const DOURADO = 'FFC9A962';
@@ -59,16 +61,7 @@ export async function gerarExcelFluxoCaixa(movimentos: MovimentoCaixa[], periodo
   [2, 3, 4, 5, 6].forEach((col) => (dia.getColumn(col).numFmt = MOEDA));
   dia.views = [{ state: 'frozen', ySplit: 1 }];
 
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = nomeArquivoFluxoCaixa(periodo);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  await entregarArquivo(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME }), nomeArquivoFluxoCaixa(periodo));
 }
 
 // Planilha de estoque com custo, venda, lucro e margem já calculados.
@@ -119,14 +112,5 @@ export async function gerarExcelEstoque(produtos: MarmitaAdminListItem[], catego
   ws.autoFilter = { from: 'A1', to: `I${Math.max(dados.linhas.length + 1, 1)}` };
   ws.views = [{ state: 'frozen', ySplit: 1 }];
 
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = nomeArquivoEstoque();
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  await entregarArquivo(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME }), nomeArquivoEstoque());
 }

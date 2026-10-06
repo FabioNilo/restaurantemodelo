@@ -47,6 +47,17 @@ interface MesaRow {
 
 // --- Validação ---
 
+const itensPedidoSchema = z
+  .array(
+    z.object({
+      produto_id: z.string().trim().min(1).max(120),
+      tamanho_codigo: z.string().trim().max(80).nullish(),
+      quantidade: z.coerce.number().int().min(1).max(50),
+    })
+  )
+  .min(1, 'O pedido está vazio.')
+  .max(40, 'Pedido grande demais. Divida em dois pedidos.');
+
 export const pedidoMesaSchema = z.object({
   // Nome e telefone são obrigatórios: o atendente confirma o pedido com quem pediu.
   nome_cliente: z.string().trim().min(2, 'Informe seu nome.').max(60),
@@ -55,16 +66,15 @@ export const pedidoMesaSchema = z.object({
     .transform((value) => value.replace(/\D/g, ''))
     .refine((value) => value.length >= 10 && value.length <= 11, 'Informe um telefone válido com DDD.'),
   observacoes: z.string().trim().max(300).nullish(),
-  itens: z
-    .array(
-      z.object({
-        produto_id: z.string().trim().min(1).max(120),
-        tamanho_codigo: z.string().trim().max(80).nullish(),
-        quantidade: z.coerce.number().int().min(1).max(50),
-      })
-    )
-    .min(1, 'O pedido está vazio.')
-    .max(40, 'Pedido grande demais. Divida em dois pedidos.'),
+  itens: itensPedidoSchema,
+});
+
+// Pedido lançado pelo atendente no painel: sem telefone e com nome opcional.
+export const pedidoAtendenteSchema = z.object({
+  token: z.string().trim().min(1).max(200),
+  nome_cliente: z.string().trim().max(60).nullish(),
+  observacoes: z.string().trim().max(300).nullish(),
+  itens: itensPedidoSchema,
 });
 
 export const mesaCreateSchema = z.object({
@@ -196,7 +206,16 @@ export async function getMesaPublica(token: string) {
   };
 }
 
-export async function criarPedidoMesa(token: string, input: z.infer<typeof pedidoMesaSchema>) {
+interface NovoPedidoMesa {
+  nome_cliente?: string | null;
+  telefone_cliente?: string | null;
+  observacoes?: string | null;
+  itens: z.infer<typeof itensPedidoSchema>;
+}
+
+// 'cliente' (QR code): entra pendente, até o atendente confirmar. 'atendente' (painel,
+// já autenticado): entra confirmado, pois quem lança é a própria equipe.
+export async function criarPedidoMesa(token: string, input: NovoPedidoMesa, origem: 'cliente' | 'atendente' = 'cliente') {
   const mesa = await getMesaPorToken(token);
 
   if (!mesa.ativa) {
@@ -228,10 +247,10 @@ export async function criarPedidoMesa(token: string, input: z.infer<typeof pedid
          select id from contas_mesa where mesa_id = $1 and status = 'aberta'
          limit 1
        )
-       insert into pedidos_mesa (conta_id, mesa_id, nome_cliente, telefone_cliente, observacoes, itens, valor_total)
-       select id, $1, $2, $6, $3, $4::jsonb, $5 from conta
+       insert into pedidos_mesa (conta_id, mesa_id, nome_cliente, telefone_cliente, observacoes, itens, valor_total, status)
+       select id, $1, $2, $6, $3, $4::jsonb, $5, $7 from conta
        returning numero, status, valor_total`,
-      [mesa.id, input.nome_cliente, input.observacoes || null, JSON.stringify(itens), total, input.telefone_cliente]
+      [mesa.id, input.nome_cliente || null, input.observacoes || null, JSON.stringify(itens), total, input.telefone_cliente || null, origem === 'atendente' ? 'novo' : 'pendente']
     );
 
   // Se outro pedido da mesma mesa abriu a conta no mesmo instante, a primeira

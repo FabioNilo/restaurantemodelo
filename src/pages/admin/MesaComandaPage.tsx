@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Armchair, CheckCircle2, ChefHat, ExternalLink, Loader2, Printer, XCircle } from 'lucide-react';
+import { ArrowLeft, Armchair, CheckCircle2, ChefHat, ChevronDown, Loader2, Plus, Printer, Wallet, XCircle } from 'lucide-react';
 import { FecharContaForm } from '@/components/admin/mesas/FecharContaForm';
+import { TelaCheia, TelaCheiaFrame } from '@/components/admin/TelaCheia';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/context/AuthContext';
 import { cancelarContaMesa, fecharContaMesaPagamentos, fetchMesaDetalhe, updateStatusPedidoMesa } from '@/features/integrations/marmitas-api';
 import { STATUS_PEDIDO_MESA_LABELS, type PedidoMesaPainel, type StatusPedidoMesa } from '@/features/integrations/mesas-contracts';
 import { toast } from '@/hooks/use-toast';
+import { useConfirmar } from '@/hooks/useConfirmar';
 import { getApiErrorMessage } from '@/lib/api';
 import { buildMesaUrl } from '@/lib/mesa';
 import { formaPagamentoLabel, formatBRL } from '@/lib/pagamentos';
@@ -41,6 +45,9 @@ export default function MesaComandaPage() {
   const { permissions } = useAuth();
   const chave = ['admin', 'mesas', 'detalhe', id] as const;
   const [visao, setVisao] = useState<'resumo' | 'detalhado'>('detalhado');
+  const [lancando, setLancando] = useState(false);
+  const [fechandoMobile, setFechandoMobile] = useState(false);
+  const { confirmar, dialogo } = useConfirmar();
 
   const detalhe = useQuery({
     queryKey: chave,
@@ -65,6 +72,7 @@ export default function MesaComandaPage() {
   const fechar = useMutation({
     mutationFn: (pagamentos: Parameters<typeof fecharContaMesaPagamentos>[1]) => fecharContaMesaPagamentos(detalhe.data!.conta!.id, pagamentos),
     onSuccess: (r) => {
+      setFechandoMobile(false);
       toast({ title: 'Conta fechada. Mesa liberada!', description: `Total ${formatBRL(r.valor_total)}` });
       atualizar();
     },
@@ -93,6 +101,43 @@ export default function MesaComandaPage() {
   const resumo = resumirConta(pedidosNaConta);
   const imprimirConta = (modo: ModoContaMesa) => downloadMesaContaThermalPdf(pedidosNaConta, mesa.nome, modo);
 
+  const pedirCancelarPedido = async (pedido: PedidoMesaPainel) => {
+    if (await confirmar({ titulo: `Cancelar o pedido nº ${pedido.numero}?`, descricao: 'Ele sai da conta da mesa.', confirmar: 'Cancelar pedido', perigo: true })) {
+      status.mutate({ pedidoId: pedido.id, novo: 'cancelado' });
+    }
+  };
+
+  const pedirCancelarConta = async () => {
+    if (
+      await confirmar({
+        titulo: `Cancelar a conta inteira da ${mesa.nome}?`,
+        descricao: 'Use só se a conta foi aberta por engano. Todos os pedidos dela saem.',
+        confirmar: 'Cancelar conta',
+        perigo: true,
+      })
+    ) {
+      setFechandoMobile(false);
+      cancelarConta.mutate();
+    }
+  };
+
+  // Lançar pedido abre o cardápio da mesa por cima do painel (sem aba nova); ao voltar, atualiza a comanda.
+  const alternarLancamento = (aberto: boolean) => {
+    setLancando(aberto);
+    if (!aberto) atualizar();
+  };
+
+  const fecharConta = conta && (
+    <>
+      <FecharContaForm total={conta.total} pedidosEmAndamento={conta.em_andamento} enviando={fechar.isPending} onFechar={(p) => fechar.mutate(p)} />
+      {permissions.role === 'admin' && (
+        <button className="self-end py-2 text-xs text-muted-foreground hover:text-destructive" onClick={pedirCancelarConta}>
+          Cancelar conta aberta por engano
+        </button>
+      )}
+    </>
+  );
+
   const imprimir = (pedido: PedidoMesaPainel) =>
     downloadMesaPedidoThermalPdf(
       { ...pedido, itens: pedido.itens.map((i) => ({ ...i, tamanho_nome: i.tamanho_nome ?? undefined, tamanho_serve: i.tamanho_serve ?? undefined })) },
@@ -112,10 +157,8 @@ export default function MesaComandaPage() {
           <p className="text-sm text-muted-foreground">{conta ? `Comanda aberta às ${hora(conta.aberta_em)}` : 'Mesa livre, sem comanda aberta.'}</p>
         </div>
         {mesa.ativa && (
-          <Button variant="outline" asChild>
-            <a href={buildMesaUrl(mesa.token)} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-2 h-4 w-4" /> Lançar pedido (cardápio da mesa)
-            </a>
+          <Button variant="outline" onClick={() => setLancando(true)} className="h-11 w-full sm:h-10 sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" /> Lançar pedido
           </Button>
         )}
       </div>
@@ -124,7 +167,7 @@ export default function MesaComandaPage() {
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div role="group" aria-label="Visualização do pedido" className="inline-flex rounded-full border bg-card p-1">
+              <div role="group" aria-label="Visualização do pedido" className="grid w-full grid-cols-2 rounded-full border bg-card p-1 sm:inline-grid sm:w-auto">
                 {(['resumo', 'detalhado'] as const).map((opcao) => (
                   <button
                     key={opcao}
@@ -132,7 +175,7 @@ export default function MesaComandaPage() {
                     aria-pressed={visao === opcao}
                     onClick={() => setVisao(opcao)}
                     className={cn(
-                      'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                      'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
                       visao === opcao ? 'bg-secondary text-primary' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
@@ -141,14 +184,21 @@ export default function MesaComandaPage() {
                 ))}
               </div>
               {pedidosNaConta.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => imprimirConta('resumo')}>
-                    <Printer className="mr-1 h-4 w-4" /> Conta (resumo)
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => imprimirConta('pessoas')}>
-                    <Printer className="mr-1 h-4 w-4" /> Conta por pessoa
-                  </Button>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-11 w-full sm:h-9 sm:w-auto">
+                      <Printer className="mr-1 h-4 w-4" /> Imprimir conta <ChevronDown className="ml-1 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem className="py-3" onSelect={() => imprimirConta('resumo')}>
+                      Resumo da mesa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="py-3" onSelect={() => imprimirConta('pessoas')}>
+                      Detalhada por pessoa
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
 
@@ -213,21 +263,21 @@ export default function MesaComandaPage() {
                   {pedido.status !== 'cancelado' && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {proximo && (
-                        <Button size="sm" variant="secondary" className="text-primary" disabled={status.isPending} onClick={() => status.mutate({ pedidoId: pedido.id, novo: proximo.status })}>
+                        <Button size="sm" variant="secondary" className="h-11 flex-1 text-primary sm:h-9 sm:flex-none" disabled={status.isPending} onClick={() => status.mutate({ pedidoId: pedido.id, novo: proximo.status })}>
                           {proximo.status === 'novo' ? <ChefHat className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
                           {proximo.label}
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => imprimir(pedido)} disabled={pedido.status === 'pendente'} title={pedido.status === 'pendente' ? 'Confirme o pedido antes de imprimir' : undefined}>
+                      <Button size="sm" variant="outline" className="h-11 sm:h-9" onClick={() => imprimir(pedido)} disabled={pedido.status === 'pendente'} title={pedido.status === 'pendente' ? 'Confirme o pedido antes de imprimir' : undefined}>
                         <Printer className="mr-1 h-4 w-4" /> Imprimir
                       </Button>
                       {pedido.status !== 'entregue' && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-destructive hover:text-destructive"
+                          className="h-11 text-destructive hover:text-destructive sm:h-9"
                           disabled={status.isPending}
-                          onClick={() => window.confirm(`Cancelar o pedido nº ${pedido.numero}?`) && status.mutate({ pedidoId: pedido.id, novo: 'cancelado' })}
+                          onClick={() => pedirCancelarPedido(pedido)}
                         >
                           <XCircle className="mr-1 h-4 w-4" /> Cancelar
                         </Button>
@@ -239,19 +289,37 @@ export default function MesaComandaPage() {
             })}
           </section>
 
-          <div className="flex flex-col gap-3">
-            <FecharContaForm total={conta.total} pedidosEmAndamento={conta.em_andamento} enviando={fechar.isPending} onFechar={(p) => fechar.mutate(p)} />
-            {permissions.role === 'admin' && (
-              <button
-                className="self-end text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => window.confirm(`Cancelar a conta inteira da ${mesa.nome}? Use só se foi aberta por engano.`) && cancelarConta.mutate()}
-              >
-                Cancelar conta aberta por engano
-              </button>
-            )}
-          </div>
+          <div className="hidden flex-col gap-3 lg:flex">{fecharConta}</div>
         </div>
       )}
+
+      {conta && (
+        <>
+          {/* Celular: total e "Fechar conta" sempre à mão, acima da barra de navegação. */}
+          <div className="h-16 lg:hidden" aria-hidden="true" />
+          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 border-t bg-card px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] lg:hidden">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">Total da conta</p>
+              <p className="font-display text-2xl font-bold leading-tight text-gold-ink">{formatBRL(conta.total)}</p>
+            </div>
+            <Button variant="secondary" className="h-12 px-5 font-bold text-primary" onClick={() => setFechandoMobile(true)}>
+              <Wallet className="mr-2 h-5 w-5" /> Fechar conta
+            </Button>
+          </div>
+          <Sheet open={fechandoMobile} onOpenChange={setFechandoMobile}>
+            <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto rounded-t-[1.5rem] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-10">
+              <SheetTitle className="sr-only">Fechar conta da {mesa.nome}</SheetTitle>
+              <SheetDescription className="sr-only">Escolha a forma de pagamento e feche a conta.</SheetDescription>
+              <div className="flex flex-col gap-3">{fecharConta}</div>
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
+
+      <TelaCheia open={lancando} onOpenChange={alternarLancamento} titulo={`Lançar pedido · ${mesa.nome}`}>
+        {lancando && <TelaCheiaFrame src={buildMesaUrl(mesa.token)} titulo={`Cardápio da ${mesa.nome}`} />}
+      </TelaCheia>
+      {dialogo}
 
       {fechadas.length > 0 && (
         <section className="rounded-2xl border bg-card p-5 shadow-soft">

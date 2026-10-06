@@ -37,6 +37,7 @@ import type {
   MesaAdmin,
   MesaPublica,
   PedidoMesaRequest,
+  PedidoMesaAtendenteRequest,
   PedidoMesaResponse,
   StatusPedidoMesa,
 } from './mesas-contracts';
@@ -544,6 +545,11 @@ export function createPedidoMesa(token: string, payload: PedidoMesaRequest) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+// Só funciona com o login do painel: o servidor confere o perfil e confirma o pedido na hora.
+export function createPedidoMesaAtendente(token: string, payload: PedidoMesaAtendenteRequest) {
+  return requestMarmitasAdmin<PedidoMesaResponse>('pedidosMesa.lancar', { token, ...payload });
 }
 
 export function fetchMesasAdmin() {

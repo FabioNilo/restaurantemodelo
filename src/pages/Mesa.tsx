@@ -8,6 +8,7 @@ import { MesaCartModal } from '@/components/mesa/MesaCartModal';
 import { MinhaContaSheet } from '@/components/mesa/MinhaContaSheet';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
+import { getStoredAdminSession } from '@/features/integrations/marmitas-api';
 import { useMesaQuery } from '@/hooks/useMesaQuery';
 import { getApiErrorMessage } from '@/lib/api';
 import { BRAND } from '@/lib/brand';
@@ -21,6 +22,9 @@ function formatCurrency(value: number) {
 export default function Mesa() {
   const { token = '' } = useParams();
   const { data, isLoading, error } = useMesaQuery(token);
+  // Aberta pelo painel (mesmo navegador, já logado): o pedido é da equipe, sem telefone e já confirmado.
+  // O servidor confere o login de verdade; isto só escolhe qual formulário mostrar.
+  const atendente = !!getStoredAdminSession()?.access_token;
   const { totalItems, totalPrice } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
   const [contaOpen, setContaOpen] = useState(false);
@@ -98,6 +102,7 @@ export default function Mesa() {
           token={token}
           mesaNome={mesa.nome}
           onVerConta={() => setContaOpen(true)}
+          atendente={atendente}
         />
       )}
 

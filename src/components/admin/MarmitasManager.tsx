@@ -12,10 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { getDefaultCategoryOrder, sortCategoriesByDisplayOrder } from '@/lib/product-category';
 import { DEFAULT_PAGE_SIZE } from '@/lib/query-client';
+import { getCatalogImageSrc } from '@/lib/catalog-image';
+import { cn } from '@/lib/utils';
 import {
   ArrowDown,
   ArrowUp,
   Plus,
+  ChevronRight,
   Pencil,
   Trash2,
   Loader2,
@@ -251,18 +254,18 @@ export function MarmitasManager() {
   return (
     <div className="space-y-6">
       <Dialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] rounded-2xl">
           <DialogHeader>
             <DialogTitle>Confirmar exclusão</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja excluir "{deleteItem?.nome}"? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteItem(null)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteItem(null)} className="h-11 sm:h-10">
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting} className="h-11 sm:h-10">
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Excluir'}
             </Button>
           </DialogFooter>
@@ -371,25 +374,34 @@ export function MarmitasManager() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-wrap gap-4 justify-between items-center">
+      <div className="flex flex-wrap gap-2 justify-between items-center sm:gap-4">
         <div className="flex gap-2">
-          <Button onClick={handleOpenCreate}>
+          <Button onClick={handleOpenCreate} className="hidden sm:inline-flex">
             <Plus className="h-4 w-4 mr-2" />
             Novo produto
           </Button>
-          <Button variant="outline" onClick={() => setCategoriaDialogOpen(true)}>
+          <Button variant="outline" onClick={() => setCategoriaDialogOpen(true)} className="h-11 sm:h-10">
             <Tag className="h-4 w-4 mr-2" />
             Categorias
           </Button>
         </div>
-        <Button variant="ghost" onClick={refetch}>
+        <Button variant="ghost" onClick={refetch} className="h-11 sm:h-10">
           <RefreshCw className="h-4 w-4 mr-2" />
           Atualizar
         </Button>
       </div>
 
+      {/* Celular: "Novo produto" flutuante, acima da barra de navegação. */}
+      <Button
+        onClick={handleOpenCreate}
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 h-14 rounded-full px-5 font-bold shadow-card sm:hidden"
+        aria-label="Novo produto"
+      >
+        <Plus className="mr-1 h-5 w-5" /> Novo
+      </Button>
+
       <Card>
-        <CardHeader>
+        <CardHeader className="px-4 sm:px-6">
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
             Cardápio
@@ -398,8 +410,9 @@ export function MarmitasManager() {
             {filtrando ? `${totalCount} produto(s) encontrado(s)` : `${totalCount} produto(s) cadastrado(s)`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <CardContent className="space-y-4 px-3 sm:px-6">
+          {/* Busca fica presa no topo ao rolar a lista no celular. */}
+          <div className="sticky top-14 z-10 -mx-3 flex flex-col gap-3 bg-card px-3 py-2 sm:static sm:mx-0 sm:flex-row sm:items-center sm:p-0 lg:top-0">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input
@@ -408,14 +421,14 @@ export function MarmitasManager() {
                 onChange={(event) => setBuscaDigitada(event.target.value)}
                 placeholder="Buscar produto pelo nome"
                 aria-label="Buscar produto pelo nome"
-                className="pl-9"
+                className="h-11 pl-9 sm:h-10"
               />
             </div>
             <Select
               value={categoriaFiltro || 'all'}
               onValueChange={(valor) => atualizarParams({ cat: valor === 'all' ? null : valor, pagina: null })}
             >
-              <SelectTrigger className="sm:w-56" aria-label="Filtrar por categoria">
+              <SelectTrigger className="hidden sm:flex sm:w-56" aria-label="Filtrar por categoria">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -428,8 +441,24 @@ export function MarmitasManager() {
                 <SelectItem value={SEM_CATEGORIA}>Sem categoria</SelectItem>
               </SelectContent>
             </Select>
+            <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-none sm:hidden" role="group" aria-label="Filtrar por categoria">
+              {[{ id: '', nome: 'Todas' }, ...orderedCategorias, { id: SEM_CATEGORIA, nome: 'Sem categoria' }].map((categoria) => (
+                <button
+                  key={categoria.id || 'todas'}
+                  type="button"
+                  aria-pressed={categoriaFiltro === categoria.id}
+                  onClick={() => atualizarParams({ cat: categoria.id || null, pagina: null })}
+                  className={cn(
+                    'h-9 shrink-0 rounded-full border px-4 text-sm font-medium',
+                    categoriaFiltro === categoria.id ? 'border-secondary bg-secondary text-primary' : 'bg-background text-muted-foreground'
+                  )}
+                >
+                  {categoria.nome}
+                </button>
+              ))}
+            </div>
             {filtrando && (
-              <Button variant="ghost" onClick={limparFiltros} className="gap-1">
+              <Button variant="ghost" onClick={limparFiltros} className="h-11 gap-1 sm:h-10">
                 <X className="h-4 w-4" />
                 Limpar filtros
               </Button>
@@ -455,7 +484,46 @@ export function MarmitasManager() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="overflow-x-auto">
+              <ul className="divide-y rounded-xl border md:hidden">
+                {marmitas.map((marmita) => {
+                  const foto = getCatalogImageSrc(marmita.imagem_url);
+                  return (
+                    <li key={marmita.id} className="flex items-center gap-3 p-3">
+                      <button type="button" onClick={() => handleOpenEdit(marmita.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                        {foto ? (
+                          <img src={foto} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-lg bg-muted object-cover" />
+                        ) : (
+                          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                            <Package className="h-6 w-6" />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold">{marmita.nome}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {getCategoriaName(marmita.categoria_id)} · estoque {marmita.estoque ?? 0}
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-2">
+                            <span className="font-bold text-gold-ink">R$ {Number(marmita.preco).toFixed(2).replace('.', ',')}</span>
+                            {!marmita.disponivel && <Badge variant="secondary" className="px-1.5 py-0 text-[0.65rem]">Indisponível</Badge>}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteItem(marmita as Marmita)}
+                        aria-label={`Excluir ${marmita.nome}`}
+                        className="h-11 w-11 shrink-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -518,6 +586,7 @@ export function MarmitasManager() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-11 sm:h-9"
                     onClick={() => setPage((current) => Math.max(1, current - 1))}
                     disabled={page === 1}
                   >
@@ -526,6 +595,7 @@ export function MarmitasManager() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-11 sm:h-9"
                     onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                     disabled={page >= totalPages}
                   >

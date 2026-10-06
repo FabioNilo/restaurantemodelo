@@ -40,6 +40,8 @@ import {
 import { assertPeriodo, desempenhoSchema, getDesempenho, getMetricas, getMovimentosCaixa, metricasSchema } from '../relatorios.js';
 import {
   atualizarMesa,
+  criarPedidoMesa,
+  pedidoAtendenteSchema,
   atualizarStatusPedido,
   cancelarConta,
   criarMesa,
@@ -154,6 +156,14 @@ const actions: Record<string, ActionDefinition> = {
   'mesas.painel': {
     roles: ['admin', 'gestor'],
     run: async () => getPainel(),
+  },
+  // Pedido lançado pela equipe: sem telefone, nome opcional e já confirmado.
+  'pedidosMesa.lancar': {
+    roles: ['admin', 'gestor'],
+    run: async (payload) => {
+      const { token, ...pedido } = pedidoAtendenteSchema.parse(payload);
+      return criarPedidoMesa(token, pedido, 'atendente');
+    },
   },
   'pedidosMesa.status': {
     roles: ['admin', 'gestor'],

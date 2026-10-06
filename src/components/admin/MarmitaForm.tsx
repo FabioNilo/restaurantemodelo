@@ -11,7 +11,7 @@ import { DecimalInput } from '@/components/admin/DecimalInput';
 import { calcularLucro } from '@/lib/estoque-lucro';
 import { getProductOptionLabels } from '@/lib/product-category';
 import { cn } from '@/lib/utils';
-import { Expand, ImageIcon, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Camera, Expand, ImageIcon, Loader2, Plus, Trash2, X } from 'lucide-react';
 
 const MAX_DATABASE_IMAGE_BYTES = 500 * 1024;
 const IMAGE_MAX_SIDE_PX = 800;
@@ -548,10 +548,29 @@ export function MarmitaForm({
                     </div>
                     <div className="space-y-2 rounded-lg border bg-background p-3">
                       <Label htmlFor="imagem-upload">Enviar imagem</Label>
+                      {/* No celular, tirar a foto na hora costuma ser o caminho mais rápido. */}
+                      <Label
+                        htmlFor="imagem-camera"
+                        className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-secondary px-4 text-sm font-semibold text-primary sm:hidden"
+                      >
+                        <Camera className="h-4 w-4" /> Tirar foto agora
+                      </Label>
+                      <input
+                        id="imagem-camera"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={(event) => {
+                          handleImageFileChange(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = '';
+                        }}
+                      />
                       <Input
                         id="imagem-upload"
                         type="file"
                         accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="h-11 sm:h-10"
                         onChange={(event) => {
                           handleImageFileChange(event.target.files?.[0] ?? null);
                           event.currentTarget.value = '';
@@ -578,11 +597,19 @@ export function MarmitaForm({
         </div>
       )}
 
-      <div className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', isDialogLayout && 'pt-2')}>
-        <Button variant="outline" onClick={() => (isDialogLayout ? onOpenChange?.(false) : onCancel?.())}>
+      {/* Na página (celular), Cancelar/Salvar ficam presos acima da barra de navegação. */}
+      <div
+        className={cn(
+          'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+          isDialogLayout
+            ? 'pt-2'
+            : 'sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 grid grid-cols-2 border-t bg-background px-4 py-3 sm:flex lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0'
+        )}
+      >
+        <Button variant="outline" className="h-11 sm:h-10" onClick={() => (isDialogLayout ? onOpenChange?.(false) : onCancel?.())}>
           Cancelar
         </Button>
-        <Button onClick={handleSubmit} disabled={saving || loadingInitialData || imageProcessing}>
+        <Button className="h-11 sm:h-10" onClick={handleSubmit} disabled={saving || loadingInitialData || imageProcessing}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           {isEditing ? 'Salvar alterações' : 'Criar produto'}
         </Button>

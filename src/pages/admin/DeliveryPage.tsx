@@ -9,6 +9,7 @@ import { entregarDelivery, fetchDeliveryAdmin, updateStatusDelivery } from '@/fe
 import { STATUS_DELIVERY_LABELS, type PedidoDelivery, type StatusDelivery } from '@/features/integrations/painel-contracts';
 import { useAlertaNovosPedidos } from '@/hooks/useAlertaNovosPedidos';
 import { toast } from '@/hooks/use-toast';
+import { useConfirmar } from '@/hooks/useConfirmar';
 import { getApiErrorMessage } from '@/lib/api';
 import { FORMA_PAGAMENTO_LABELS, FORMAS_PAGAMENTO, formatBRL, fromCents, toCents, type FormaPagamento } from '@/lib/pagamentos';
 import { downloadPedidoThermalLabelPdf } from '@/lib/thermal-label-pdf';
@@ -38,6 +39,7 @@ const telefoneBR = (t: string) => (t.length === 11 ? `(${t.slice(0, 2)}) ${t.sli
 // entregar, confirma a forma de pagamento (Pix/Débito/Crédito) — aí entra no caixa.
 export default function DeliveryPage() {
   const queryClient = useQueryClient();
+  const { confirmar, dialogo } = useConfirmar();
   const [entregando, setEntregando] = useState<PedidoDelivery | null>(null);
   const [metodo, setMetodo] = useState<FormaPagamento>('pix');
   const [taxa, setTaxa] = useState(0);
@@ -196,7 +198,11 @@ export default function DeliveryPage() {
                   size="sm"
                   variant="ghost"
                   className="text-destructive hover:text-destructive"
-                  onClick={() => window.confirm(`Cancelar o pedido nº ${p.numero}?`) && status.mutate({ id: p.id, novo: 'cancelado' })}
+                  onClick={async () => {
+                    if (await confirmar({ titulo: `Cancelar o pedido nº ${p.numero}?`, confirmar: 'Cancelar pedido', perigo: true })) {
+                      status.mutate({ id: p.id, novo: 'cancelado' });
+                    }
+                  }}
                 >
                   <XCircle className="mr-1 h-4 w-4" /> Cancelar
                 </Button>
@@ -271,6 +277,7 @@ export default function DeliveryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {dialogo}
     </div>
   );
 }
