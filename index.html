@@ -40,9 +40,118 @@
     <meta name="twitter:image" content="%BASE_URL%brand/og-image.jpg" />
 
     <script src="%BASE_URL%runtime-config.js"></script>
+
+    <!--
+      Abertura animada (xícara de café quente). Fica no HTML, e não no React,
+      para aparecer antes do bundle carregar. Só roda na página inicial e uma
+      vez por sessão; some quando a animação termina E o app já renderizou.
+    -->
+    <style>
+      #intro { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: #0f1f14; animation: ciBgIn .3s ease; cursor: pointer; }
+      #intro.ci-out { animation: ciBgOut .55s ease forwards; pointer-events: none; }
+      #intro .ci-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      #intro svg * { transform-box: fill-box; }
+      .ci-saucer { stroke-dasharray: 560; stroke-dashoffset: 560; animation: ciDraw .5s ease-out forwards; }
+      .ci-cup { fill-opacity: 0; stroke-dasharray: 420; stroke-dashoffset: 420; animation: ciDraw .55s ease-out .2s forwards, ciFill .3s ease-out .65s forwards; }
+      .ci-handle { stroke-dasharray: 90; stroke-dashoffset: 90; animation: ciDraw .3s ease-out .55s forwards; }
+      .ci-stream { stroke-dasharray: 90; stroke-dashoffset: 90; animation: ciPour .95s ease-in-out .7s forwards; }
+      .ci-coffee { transform-origin: bottom; transform: scaleY(0); animation: ciGrow .75s cubic-bezier(.3,.7,.4,1) .85s forwards; }
+      .ci-crema { opacity: 0; transform-origin: center; transform: scale(.6); animation: ciPop .35s cubic-bezier(.34,1.56,.64,1) 1.5s forwards; }
+      .ci-rim { stroke-dasharray: 380; stroke-dashoffset: 380; animation: ciDraw .45s ease-out .45s forwards; }
+      .ci-scene { transform-origin: bottom; animation: ciSquash .3s ease-out 1.6s; }
+      .ci-steam { opacity: 0; animation: ciSteam 2.1s ease-in-out infinite; }
+      .ci-steam-1 { animation-delay: 1.65s; }
+      .ci-steam-2 { animation-delay: 1.9s; }
+      .ci-steam-3 { animation-delay: 2.15s; }
+      .ci-label { opacity: 0; animation: ciFadeUp .5s ease-out 1.75s forwards; text-align: center; }
+      .ci-name { font: 600 30px/1.1 "Cormorant Garamond", Georgia, serif; color: #cca85c; letter-spacing: .5px; }
+      .ci-sub { margin-top: 6px; font: 600 11px/1 Montserrat, sans-serif; letter-spacing: 3px; text-transform: uppercase; color: #e9d9b4; opacity: .7; }
+
+      @keyframes ciDraw { to { stroke-dashoffset: 0; } }
+      @keyframes ciFill { to { fill-opacity: 1; } }
+      @keyframes ciGrow { to { transform: scaleY(1); } }
+      @keyframes ciPop { to { opacity: 1; transform: none; } }
+      /* O fio de café desce do bule e depois "solta" de cima para baixo. */
+      @keyframes ciPour {
+        0% { stroke-dashoffset: 90; }
+        35%, 72% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: -90; }
+      }
+      @keyframes ciSquash { 40% { transform: scale(1.03, .96); } 100% { transform: none; } }
+      @keyframes ciSteam {
+        0% { opacity: 0; transform: translateY(8px) scaleX(.9); }
+        35% { opacity: .75; }
+        100% { opacity: 0; transform: translateY(-18px) scaleX(1.1); }
+      }
+      @keyframes ciFadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes ciBgIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes ciBgOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.04); } }
+
+      @media (prefers-reduced-motion: reduce) {
+        #intro svg *, .ci-label { animation: none !important; opacity: 1 !important; transform: none !important; stroke-dashoffset: 0 !important; fill-opacity: 1 !important; }
+        .ci-stream { opacity: 0 !important; }
+      }
+    </style>
   </head>
 
   <body>
+    <div id="intro" aria-hidden="true" title="Toque para pular">
+      <div class="ci-wrap">
+        <svg width="220" height="200" viewBox="0 0 240 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="ci-inside"><path d="M54 94H166V128C166 157 144 174 110 174C76 174 54 157 54 128Z" /></clipPath>
+          </defs>
+          <path class="ci-steam ci-steam-1" d="M88 74c-11-9 11-16 0-25s11-16 0-25" stroke="#e9d9b4" stroke-width="5" stroke-linecap="round" />
+          <path class="ci-steam ci-steam-2" d="M110 70c-11-9 11-16 0-25s11-16 0-25" stroke="#e9d9b4" stroke-width="5" stroke-linecap="round" />
+          <path class="ci-steam ci-steam-3" d="M132 74c-11-9 11-16 0-25s11-16 0-25" stroke="#e9d9b4" stroke-width="5" stroke-linecap="round" />
+          <line class="ci-stream" x1="110" y1="4" x2="110" y2="94" stroke="#6b3e22" stroke-width="7" stroke-linecap="round" />
+          <g class="ci-scene">
+            <ellipse class="ci-saucer" cx="110" cy="182" rx="88" ry="13" fill="#16301f" stroke="#cca85c" stroke-width="4" />
+            <path class="ci-handle" d="M168 104c30 0 32 40-2 46" stroke="#cca85c" stroke-width="7" stroke-linecap="round" />
+            <path class="ci-cup" d="M50 92H170V128C170 160 146 178 110 178C74 178 50 160 50 128Z" fill="#f4ecdd" stroke="#cca85c" stroke-width="4" stroke-linejoin="round" />
+            <g clip-path="url(#ci-inside)">
+              <rect class="ci-coffee" x="50" y="92" width="120" height="86" fill="#6b3e22" />
+            </g>
+            <ellipse class="ci-crema" cx="110" cy="93" rx="56" ry="6" fill="#b37a45" />
+            <ellipse class="ci-rim" cx="110" cy="92" rx="60" ry="8" stroke="#cca85c" stroke-width="4" />
+          </g>
+        </svg>
+        <div class="ci-label">
+          <div class="ci-name">Nosso Bistrô Café</div>
+          <div class="ci-sub">Feito na hora</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var el = document.getElementById("intro");
+        var seen = false;
+        try { seen = sessionStorage.getItem("ci-intro") === "1"; } catch (e) {}
+        var base = "%BASE_URL%";
+        var isHome = location.pathname === base || location.pathname === base.replace(/\/$/, "");
+        if (!isHome || seen) { el.remove(); return; }
+        try { sessionStorage.setItem("ci-intro", "1"); } catch (e) {}
+
+        var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var minTime = reduced ? 700 : 2700; // tempo da animação até o vapor subir
+        var maxTime = 6000;                 // nunca prende o usuário além disso
+        var start = Date.now(), done = false;
+
+        function hide() {
+          if (done) return; done = true;
+          el.classList.add("ci-out");
+          setTimeout(function () { el.remove(); }, 600);
+        }
+        el.addEventListener("click", hide);
+        (function check() {
+          var root = document.getElementById("root");
+          var ready = root && root.children.length > 0;
+          var t = Date.now() - start;
+          if ((t >= minTime && ready) || t >= maxTime) hide();
+          else setTimeout(check, 150);
+        })();
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
