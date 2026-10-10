@@ -1,8 +1,10 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Armchair,
   BarChart3,
+  Bell,
+  BellRing,
   Bike,
   ExternalLink,
   Loader2,
@@ -15,10 +17,13 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
+import { NotificacoesPainel } from '@/components/admin/NotificacoesPainel';
 import { TelaCheia, TelaCheiaFrame } from '@/components/admin/TelaCheia';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/context/AuthContext';
+import { useNotificacoesPush } from '@/hooks/useNotificacoesPush';
+import { usePwaAdmin } from '@/hooks/usePwaAdmin';
 import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +44,25 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
   const [maisAberto, setMaisAberto] = useState(false);
   const [cardapioAberto, setCardapioAberto] = useState(false);
+  const [notifAberto, setNotifAberto] = useState(false);
+
+  // PWA do painel: instalar como app e receber aviso (push) de pedido novo.
+  const abrirDaNotificacao = useCallback((url: string) => navigate(url), [navigate]);
+  const pwa = usePwaAdmin(abrirDaNotificacao);
+  const push = useNotificacoesPush(Boolean(user) && permissions.canAccessAdminPanel);
+  const mostrarAvisos = !['carregando', 'indisponivel'].includes(push.estado) || pwa.podeInstalar;
+  const painelAvisos = (tema: 'escuro' | 'claro') => (
+    <NotificacoesPainel
+      tema={tema}
+      estado={push.estado}
+      ocupado={push.ocupado}
+      ativar={push.ativar}
+      desativar={push.desativar}
+      testar={push.testar}
+      podeInstalar={pwa.podeInstalar}
+      instalar={pwa.instalar}
+    />
+  );
 
   // Trocar de seção fecha o "Mais".
   useEffect(() => setMaisAberto(false), [pathname]);
@@ -105,7 +129,18 @@ export default function AdminLayout() {
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-brand-deep px-4 text-secondary-foreground print:hidden lg:hidden">
         <img src={BRAND.logo.sm} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full ring-1 ring-primary/50" />
         <p className="min-w-0 flex-1 truncate font-display text-xl font-bold text-primary">{tituloSecao}</p>
-        <p className="max-w-[40%] truncate text-xs text-secondary-foreground/60">
+        {mostrarAvisos && (
+          <button
+            type="button"
+            onClick={() => setNotifAberto(true)}
+            aria-label={push.estado === 'ativado' ? 'Notificações ativadas' : 'Ativar notificações e instalar app'}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-primary"
+          >
+            {push.estado === 'ativado' ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+            {push.estado !== 'ativado' && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-brand-deep" />}
+          </button>
+        )}
+        <p className="max-w-[34%] truncate text-xs text-secondary-foreground/60">
           {user.username}
           {permissions.role === 'gestor' ? ' · caixa' : ''}
         </p>
@@ -136,9 +171,12 @@ export default function AdminLayout() {
           </button>
         </nav>
 
-        <button onClick={sair} className="mt-auto flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-secondary-foreground/65 hover:bg-white/5 hover:text-primary">
-          <LogOut className="h-[18px] w-[18px]" /> Sair
-        </button>
+        <div className="mt-auto space-y-3">
+          {mostrarAvisos && painelAvisos('escuro')}
+          <button onClick={sair} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-secondary-foreground/65 hover:bg-white/5 hover:text-primary">
+            <LogOut className="h-[18px] w-[18px]" /> Sair
+          </button>
+        </div>
       </aside>
 
       <main className="min-w-0 flex-1 px-4 pb-28 pt-5 lg:px-8 lg:py-8">
@@ -210,6 +248,14 @@ export default function AdminLayout() {
               <LogOut className="h-5 w-5" /> Sair
             </button>
           </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={notifAberto} onOpenChange={setNotifAberto}>
+        <SheetContent side="bottom" className="rounded-t-[1.5rem] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6">
+          <SheetTitle className="font-display text-2xl text-secondary">Notificações e app</SheetTitle>
+          <SheetDescription className="mb-3 text-sm">Receba aviso de pedido novo e instale o painel na tela do aparelho.</SheetDescription>
+          {painelAvisos('claro')}
         </SheetContent>
       </Sheet>
 

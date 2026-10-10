@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, CheckCircle2, ChefHat, Clock, Loader2, MapPin, Phone, Printer, Send, Volume2, VolumeX, XCircle } from 'lucide-react';
+import { Bike, CheckCircle2, ChefHat, Clock, Loader2, MapPin, Phone, Printer, Send, Store, Volume2, VolumeX, XCircle } from 'lucide-react';
 import { DecimalInput } from '@/components/admin/DecimalInput';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -33,6 +33,8 @@ const STATUS_STYLE: Record<StatusDelivery, string> = {
 
 const minutosDesde = (iso: string) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000));
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+// Retirada no balcão não passa por preparo nem entregador: vai de recebido direto a "retirado".
+const statusLabel = (p: PedidoDelivery) => (p.tipo === 'retirada' && p.status === 'entregue' ? 'Retirado' : STATUS_DELIVERY_LABELS[p.status]);
 const telefoneBR = (t: string) => (t.length === 11 ? `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}` : t);
 
 // Pedidos de delivery registrados pelo site: a equipe avança o status e, ao
@@ -51,7 +53,7 @@ export default function DeliveryPage() {
 
   const { somAtivo, alternarSom } = useAlertaNovosPedidos(
     pedidos.data ? lista.filter((p) => p.status === 'recebido').map((p) => p.id) : undefined,
-    (n) => (n === 1 ? 'Novo pedido de delivery' : `${n} novos pedidos de delivery`)
+    (n) => (n === 1 ? 'Novo pedido (delivery ou retirada)' : `${n} novos pedidos (delivery ou retirada)`)
   );
 
   const atualizar = () => queryClient.invalidateQueries({ queryKey: CHAVE });
@@ -64,9 +66,9 @@ export default function DeliveryPage() {
   });
 
   const entregar = useMutation({
-    mutationFn: () => entregarDelivery(entregando!.id, metodo, taxa),
+    mutationFn: () => entregarDelivery(entregando!.id, metodo, entregando!.tipo === 'retirada' ? 0 : taxa),
     onSuccess: (r) => {
-      toast({ title: 'Entregue e lançado no caixa', description: formatBRL(r.valor_total) });
+      toast({ title: entregando?.tipo === 'retirada' ? 'Retirado e lançado no caixa' : 'Entregue e lançado no caixa', description: formatBRL(r.valor_total) });
       setEntregando(null);
       atualizar();
     },
@@ -75,7 +77,7 @@ export default function DeliveryPage() {
 
   const abrirEntrega = (pedido: PedidoDelivery) => {
     setMetodo(pedido.forma_pagamento);
-    setTaxa(pedido.taxa_entrega ?? 0);
+    setTaxa(pedido.tipo === 'retirada' ? 0 : (pedido.taxa_entrega ?? 0));
     setEntregando(pedido);
   };
 
@@ -85,12 +87,12 @@ export default function DeliveryPage() {
         id: String(p.numero),
         nome_cliente: p.nome,
         telefone_cliente: telefoneBR(p.telefone),
-        endereco_cliente: p.endereco,
-        bairro_cliente: p.bairro,
+        endereco_cliente: p.endereco ?? '',
+        bairro_cliente: p.bairro ?? '',
         complemento_cliente: p.complemento,
         observacoes_cliente: p.observacoes,
         forma_pagamento: p.forma_pagamento,
-        tipo_entrega: 'delivery',
+        tipo_entrega: p.tipo === 'retirada' ? 'retirada' : 'delivery',
         subtotal: p.subtotal,
         taxa_entrega: p.taxa_entrega,
         valor_total: p.valor_total,
@@ -105,7 +107,7 @@ export default function DeliveryPage() {
         <div>
           <h1 className="font-display text-4xl font-bold text-secondary">Delivery</h1>
           <p className="text-sm text-muted-foreground">
-            {abertos.length} em andamento. Pedidos feitos pelo site (também enviados no WhatsApp). Atualiza a cada 15 segundos.
+            {abertos.length} em andamento. Delivery e retirada no balcão feitos pelo site (também enviados no WhatsApp). Atualiza a cada 15 segundos.
           </p>
         </div>
         <Button variant={somAtivo ? 'secondary' : 'outline'} size="sm" onClick={alternarSom} className={cn(somAtivo && 'text-primary')}>
@@ -125,17 +127,25 @@ export default function DeliveryPage() {
 
       <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {abertos.map((p) => {
-          const proximo = PROXIMO[p.status];
+          const retirada = p.tipo === 'retirada';
+          const proximo = retirada ? undefined : PROXIMO[p.status];
           const espera = minutosDesde(p.created_at);
           return (
             <article key={p.id} className={cn('flex flex-col gap-3 rounded-2xl border bg-card p-4 text-sm shadow-soft', p.status === 'recebido' && 'ring-2 ring-primary')}>
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-display text-2xl font-bold leading-none text-secondary">Nº {p.numero}</p>
+                  <p className="flex items-center gap-2 font-display text-2xl font-bold leading-none text-secondary">
+                    Nº {p.numero}
+                    {retirada && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-sans text-xs font-bold text-primary">
+                        <Store className="h-3 w-3" /> Retirada
+                      </span>
+                    )}
+                  </p>
                   <p className="mt-1 font-semibold">{p.nome}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', STATUS_STYLE[p.status])}>{STATUS_DELIVERY_LABELS[p.status]}</span>
+                  <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', STATUS_STYLE[p.status])}>{statusLabel(p)}</span>
                   <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs', espera >= 45 ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground')} title={`Pedido às ${hora(p.created_at)}`}>
                     <Clock className="h-3 w-3" /> {espera < 1 ? 'agora' : `${espera} min`}
                   </span>
@@ -146,13 +156,20 @@ export default function DeliveryPage() {
                 <a href={`tel:${p.telefone}`} className="flex items-center gap-1.5 hover:text-foreground">
                   <Phone className="h-3.5 w-3.5" /> {telefoneBR(p.telefone)}
                 </a>
-                <p className="flex gap-1.5">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    {p.endereco} · <strong className="text-foreground">{p.bairro}</strong>
-                    {p.complemento && <span className="block">{p.complemento}</span>}
-                  </span>
-                </p>
+                {retirada ? (
+                  <p className="flex gap-1.5 text-foreground">
+                    <Store className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <strong>Retirar no balcão</strong> <span className="text-muted-foreground">· paga na retirada</span>
+                  </p>
+                ) : (
+                  <p className="flex gap-1.5">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {p.endereco} · <strong className="text-foreground">{p.bairro}</strong>
+                      {p.complemento && <span className="block">{p.complemento}</span>}
+                    </span>
+                  </p>
+                )}
               </div>
 
               <ul className="space-y-0.5 rounded-xl bg-muted/60 px-3 py-2">
@@ -176,7 +193,9 @@ export default function DeliveryPage() {
                 <span className="text-muted-foreground">
                   {FORMA_PAGAMENTO_LABELS[p.forma_pagamento]}
                   <span className="block text-xs">
-                    Itens {formatBRL(p.subtotal)} + entrega {p.taxa_entrega === null ? 'a combinar' : formatBRL(p.taxa_entrega)}
+                    {retirada
+                      ? 'Sem taxa de entrega'
+                      : `Itens ${formatBRL(p.subtotal)} + entrega ${p.taxa_entrega === null ? 'a combinar' : formatBRL(p.taxa_entrega)}`}
                   </span>
                 </span>
                 <strong className="font-display text-xl text-gold-ink">{formatBRL(p.valor_total)}</strong>
@@ -189,7 +208,7 @@ export default function DeliveryPage() {
                   </Button>
                 )}
                 <Button size="sm" variant="hero" onClick={() => abrirEntrega(p)}>
-                  <CheckCircle2 className="mr-1 h-4 w-4" /> Marcar entregue
+                  <CheckCircle2 className="mr-1 h-4 w-4" /> {retirada ? 'Marcar retirado' : 'Marcar entregue'}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => imprimir(p)}>
                   <Printer className="mr-1 h-4 w-4" /> Imprimir
@@ -219,10 +238,10 @@ export default function DeliveryPage() {
             {finalizados.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-3 py-2">
                 <span className="w-14 font-semibold">Nº {p.numero}</span>
-                <span className="flex-1 truncate">{p.nome}</span>
+                <span className="flex-1 truncate">{p.nome}{p.tipo === 'retirada' && <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs font-bold text-primary">Retirada</span>}</span>
                 <span className="text-muted-foreground">{p.status === 'entregue' ? FORMA_PAGAMENTO_LABELS[p.forma_pagamento] : ''}</span>
                 <span className="tabular-nums">{formatBRL(p.valor_total)}</span>
-                <span className={cn('w-24 rounded-full px-2 py-0.5 text-center text-xs font-semibold', STATUS_STYLE[p.status])}>{STATUS_DELIVERY_LABELS[p.status]}</span>
+                <span className={cn('w-24 rounded-full px-2 py-0.5 text-center text-xs font-semibold', STATUS_STYLE[p.status])}>{statusLabel(p)}</span>
                 <span className="w-12 text-right text-muted-foreground">{hora(p.entregue_em ?? p.updated_at)}</span>
               </li>
             ))}
@@ -233,8 +252,8 @@ export default function DeliveryPage() {
       <Dialog open={entregando !== null} onOpenChange={(open) => !open && setEntregando(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Entregar pedido nº {entregando?.numero}</DialogTitle>
-            <DialogDescription>Confirme como o cliente pagou. O valor entra no caixa de hoje.</DialogDescription>
+            <DialogTitle>{entregando?.tipo === 'retirada' ? 'Retirada do pedido' : 'Entregar pedido'} nº {entregando?.numero}</DialogTitle>
+            <DialogDescription>Confirme como o cliente pagou{entregando?.tipo === 'retirada' ? ' no balcão' : ''}. O valor entra no caixa de hoje.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Forma de pagamento">
@@ -251,6 +270,7 @@ export default function DeliveryPage() {
                 </button>
               ))}
             </div>
+            {entregando?.tipo !== 'retirada' && (
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="taxa-entrega">
                 Taxa de entrega
@@ -262,17 +282,22 @@ export default function DeliveryPage() {
               </Label>
               <DecimalInput id="taxa-entrega" value={taxa} onValueChange={setTaxa} className="h-10 w-28 text-right" />
             </div>
+            )}
             {entregando && (
               <div className="flex items-baseline justify-between rounded-xl bg-muted/60 p-3">
-                <span className="text-muted-foreground">Itens {formatBRL(entregando.subtotal)} + entrega {formatBRL(taxa)}</span>
-                <strong className="font-display text-2xl text-gold-ink">{formatBRL(fromCents(toCents(entregando.subtotal) + toCents(taxa)))}</strong>
+                <span className="text-muted-foreground">
+                  {entregando.tipo === 'retirada' ? 'Total da retirada' : `Itens ${formatBRL(entregando.subtotal)} + entrega ${formatBRL(taxa)}`}
+                </span>
+                <strong className="font-display text-2xl text-gold-ink">
+                  {formatBRL(entregando.tipo === 'retirada' ? entregando.subtotal : fromCents(toCents(entregando.subtotal) + toCents(taxa)))}
+                </strong>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="hero" disabled={entregar.isPending} onClick={() => entregar.mutate()}>
               {entregar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirmar entrega
+              {entregando?.tipo === 'retirada' ? 'Confirmar retirada' : 'Confirmar entrega'}
             </Button>
           </DialogFooter>
         </DialogContent>

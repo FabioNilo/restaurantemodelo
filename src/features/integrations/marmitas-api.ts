@@ -626,6 +626,24 @@ export function entregarDelivery(id: string, metodo: FormaPagamento, taxa_entreg
   return requestMarmitasAdmin<{ id: string; valor_total: number }>('delivery.entregar', { id, metodo, taxa_entrega });
 }
 
+// --- Notificações push do painel (PWA) ---
+
+export function fetchPushConfig() {
+  return requestMarmitasAdmin<{ publicKey: string | null }>('push.config');
+}
+
+export function subscribePush(subscription: { endpoint: string; keys: { p256dh: string; auth: string }; user_agent?: string }) {
+  return requestMarmitasAdmin<{ ativo: boolean }>('push.subscribe', subscription);
+}
+
+export function unsubscribePush(endpoint: string) {
+  return requestMarmitasAdmin<{ ativo: boolean }>('push.unsubscribe', { endpoint });
+}
+
+export function testarPush() {
+  return requestMarmitasAdmin<{ enviados: number; removidos: number }>('push.testar');
+}
+
 // --- Bairros e taxas de entrega (Configurações) ---
 
 export function fetchBairrosAdmin() {

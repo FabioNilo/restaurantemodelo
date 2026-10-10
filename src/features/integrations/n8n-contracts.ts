@@ -86,11 +86,12 @@ export interface PedidoCreateRequest {
   valor_total: number;
   nome_cliente: string;
   telefone_cliente: string;
-  endereco_cliente: string;
-  bairro_cliente: string;
+  /** Vazios na retirada no balcão. */
+  endereco_cliente?: string;
+  bairro_cliente?: string;
   complemento_cliente?: string | null;
   observacoes_cliente?: string | null;
-  tipo_entrega?: 'delivery';
+  tipo_entrega?: 'delivery' | 'retirada';
   forma_pagamento?: 'pix' | 'cartao_debito' | 'cartao_credito';
   tracking_base_url?: string;
 }
@@ -98,6 +99,7 @@ export interface PedidoCreateRequest {
 export interface PedidoCreateResponse {
   id: string;
   status: string;
+  tipo?: 'entrega' | 'retirada';
   subtotal?: number;
   taxa_entrega?: number | null;
   valor_total: number;

@@ -1,0 +1,22 @@
+{
+  "name": "Nosso Bistrô · Painel",
+  "short_name": "Painel",
+  "description": "Painel do Nosso Bistrô Café: mesas, delivery, retirada e caixa, com aviso de pedido novo.",
+  "id": "/admin/",
+  "start_url": "/admin/mesas",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12261a",
+  "theme_color": "#12261a",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/admin/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/admin/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mesas", "url": "/admin/mesas" },
+    { "name": "Delivery e retirada", "url": "/admin/delivery" },
+    { "name": "Caixa", "url": "/admin/caixa" }
+  ]
+}

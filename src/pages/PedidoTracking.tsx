@@ -88,6 +88,7 @@ export default function PedidoTracking() {
   });
 
   const pedido = query.data;
+  const retirada = pedido?.tipo_entrega === 'retirada';
   const canCancel = useMemo(() => {
     if (!pedido) return false;
     return pedido.can_cancel && !isTerminalStatus(pedido.status) && remainingMs > 0;
@@ -185,7 +186,7 @@ export default function PedidoTracking() {
                 <p className="mt-2 text-sm text-secondary-foreground/80">Criado em {formatDateTime(pedido.created_at)}</p>
               </div>
               <Badge className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
-                {STATUS_LABELS[pedido.status] ?? pedido.status}
+                {retirada && pedido.status === 'entregue' ? 'Retirado' : (STATUS_LABELS[pedido.status] ?? pedido.status)}
               </Badge>
             </div>
           </div>
@@ -201,8 +202,10 @@ export default function PedidoTracking() {
                   {pedido.status === 'cancelado'
                     ? 'Pedido cancelado.'
                     : pedido.status === 'entregue'
-                      ? 'Pedido entregue.'
-                      : 'A loja atualizará o status conforme o preparo avançar.'}
+                      ? (retirada ? 'Pedido retirado.' : 'Pedido entregue.')
+                      : retirada
+                        ? 'Seu pedido foi recebido. Retire no balcão e pague na retirada.'
+                        : 'A loja atualizará o status conforme o preparo avançar.'}
                 </p>
               </div>
 
@@ -231,13 +234,17 @@ export default function PedidoTracking() {
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-2 font-display text-lg font-black">
                 <MapPin className="h-5 w-5 text-gold-ink" />
-                Entrega
+                {retirada ? 'Retirada no balcão' : 'Entrega'}
               </div>
               <div className="mt-3 grid gap-1 text-sm">
                 <p><span className="font-bold">Cliente:</span> {pedido.nome_cliente ?? '-'}</p>
-                <p><span className="font-bold">Endereço:</span> {pedido.endereco_cliente ?? '-'}</p>
-                <p><span className="font-bold">Bairro:</span> {pedido.bairro_cliente ?? '-'}</p>
-                <p><span className="font-bold">Ponto de referência:</span> {pedido.complemento_cliente ?? '-'}</p>
+                {retirada ? null : (
+                  <>
+                    <p><span className="font-bold">Endereço:</span> {pedido.endereco_cliente ?? '-'}</p>
+                    <p><span className="font-bold">Bairro:</span> {pedido.bairro_cliente ?? '-'}</p>
+                    <p><span className="font-bold">Ponto de referência:</span> {pedido.complemento_cliente ?? '-'}</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -258,7 +265,7 @@ export default function PedidoTracking() {
             <div className="flex items-end justify-between gap-4">
               <div className="text-sm text-muted-foreground">
                 <p>Pagamento: <span className="font-bold text-foreground">{formaPagamentoLabel(pedido.forma_pagamento)}</span></p>
-                {typeof pedido.taxa_entrega === 'number' ? (
+                {!retirada && typeof pedido.taxa_entrega === 'number' ? (
                   <p>
                     Entrega{pedido.bairro_cliente ? ` (${pedido.bairro_cliente})` : ''}:{' '}
                     <span className="font-bold text-foreground">{formatCurrency(pedido.taxa_entrega)}</span>

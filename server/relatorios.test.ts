@@ -65,7 +65,7 @@ describe('métricas', () => {
     expect(m.pedidos).toEqual({ valor: 2, variacao: 100 });
     expect(m.ticket_medio.valor).toBe(25);
     expect(m.cancelados).toBe(1);
-    expect(m.por_canal).toEqual({ mesa: 30, delivery: 20 });
+    expect(m.por_canal).toEqual({ mesa: 30, delivery: 20, retirada: 0 });
     expect(m.por_dia).toHaveLength(7);
     expect(m.por_dia.at(-1)).toEqual({ dia: '2026-09-30', vendas: 30, pedidos: 1 });
     expect(m.top_produtos).toEqual([

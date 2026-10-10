@@ -33,7 +33,13 @@ data/supabase-export/*.json
 *.sw?
 
 # Manual com a senha inicial do admin: não commitar
-docs/Manual-*.pdf
+# Pasta docs: vídeos, manual (com a senha inicial do admin) e materiais de apoio ficam só locais.
+# (Arquivos que já estavam versionados continuam como estão.)
+docs/
+
+# Credenciais e chaves locais (login do admin, chaves VAPID do push): nunca commitar
+.admin-production.local
+.push-production.local
 
 # MCP (pode conter tokens)
 .mcp.json

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Armchair, Bike, CreditCard, FileSpreadsheet, Landmark, Loader2, QrCode, Wallet } from 'lucide-react';
+import { Armchair, Bike, CreditCard, FileSpreadsheet, Landmark, Loader2, QrCode, Store, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -142,15 +142,18 @@ export default function CaixaPage() {
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        {(['mesa', 'delivery'] as const).map((canal) => {
+      {/* A retirada no balcão só aparece quando houve recebimento dela no período. */}
+      <div className={cn('grid gap-6', resumo.porCanal.retirada > 0 ? 'xl:grid-cols-3' : 'xl:grid-cols-2')}>
+        {(['mesa', 'delivery', 'retirada'] as const)
+          .filter((canal) => canal !== 'retirada' || resumo.porCanal.retirada > 0)
+          .map((canal) => {
           const lista = (movimentos.data ?? []).filter((m) => m.canal === canal);
-          const Icone = canal === 'mesa' ? Armchair : Bike;
+          const Icone = canal === 'mesa' ? Armchair : canal === 'retirada' ? Store : Bike;
           return (
             <section key={canal} className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
               <h2 className="mb-3 flex items-center justify-between font-display text-2xl font-bold text-secondary">
                 <span className="flex items-center gap-2">
-                  <Icone className="h-5 w-5 text-gold-ink" /> {canal === 'mesa' ? 'Mesas' : 'Delivery'}
+                  <Icone className="h-5 w-5 text-gold-ink" /> {canal === 'mesa' ? 'Mesas' : canal === 'retirada' ? 'Retirada no balcão' : 'Delivery'}
                 </span>
                 <span className="font-sans text-base">{formatBRL(resumo.porCanal[canal])}</span>
               </h2>

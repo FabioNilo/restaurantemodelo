@@ -23,7 +23,7 @@ export function diasEntre(de: string, ate: string) {
 export interface Movimento {
   id: string;
   data: string; // horário local da loja, "YYYY-MM-DDTHH:mm:ss"
-  canal: 'mesa' | 'delivery';
+  canal: 'mesa' | 'delivery' | 'retirada';
   referencia: string;
   cliente: string | null;
   metodo: string;
@@ -33,12 +33,15 @@ export interface Movimento {
 }
 
 export async function getMovimentosCaixa(periodo: z.infer<typeof periodoSchema>): Promise<Movimento[]> {
-  const rows = await query<{ id: string; data: string; canal: 'mesa' | 'delivery'; referencia: string; cliente: string | null; metodo: string; valor: string; taxa_entrega: string | null }>(
+  const rows = await query<{ id: string; data: string; canal: 'mesa' | 'delivery' | 'retirada'; referencia: string; cliente: string | null; metodo: string; valor: string; taxa_entrega: string | null }>(
     `with ${CFG}
      select p.id,
             to_char(p.created_at at time zone cfg.tz, 'YYYY-MM-DD"T"HH24:MI:SS') as data,
-            p.canal,
-            case when p.canal = 'mesa' then coalesce(m.nome, 'Mesa') else 'Delivery nº ' || d.numero end as referencia,
+            -- Retirada no balcão é um pedido_delivery com tipo 'retirada': vira um canal à parte no caixa.
+            case when d.tipo = 'retirada' then 'retirada' else p.canal end as canal,
+            case when p.canal = 'mesa' then coalesce(m.nome, 'Mesa')
+                 when d.tipo = 'retirada' then 'Retirada nº ' || d.numero
+                 else 'Delivery nº ' || d.numero end as referencia,
             case when p.canal = 'delivery' then d.nome end as cliente,
             p.metodo, p.valor,
             case when p.canal = 'delivery' then least(coalesce(d.taxa_entrega, 0), p.valor) else 0 end as taxa_entrega
@@ -59,7 +62,7 @@ export async function getMovimentosCaixa(periodo: z.infer<typeof periodoSchema>)
 // --- Vendas (métricas e desempenho) ---
 
 interface VendaRow {
-  canal: 'mesa' | 'delivery';
+  canal: 'mesa' | 'delivery' | 'retirada';
   dia: string;
   status: string;
   valor: string | number;
@@ -77,7 +80,7 @@ async function getVendas(desdeDias: number) {
        from pedidos_mesa p, base
       where p.created_at >= ((base.hoje - ($1::int - 1))::timestamp at time zone base.tz)
      union all
-     select 'delivery', to_char(d.created_at at time zone base.tz, 'YYYY-MM-DD'), d.status, d.valor_total, d.itens,
+     select case when d.tipo = 'retirada' then 'retirada' else 'delivery' end, to_char(d.created_at at time zone base.tz, 'YYYY-MM-DD'), d.status, d.valor_total, d.itens,
             to_char(base.hoje, 'YYYY-MM-DD')
        from pedidos_delivery d, base
       where d.created_at >= ((base.hoje - ($1::int - 1))::timestamp at time zone base.tz)`,
@@ -101,7 +104,7 @@ export function variacao(atual: number, anterior: number) {
   return Math.round(((atual - anterior) / anterior) * 1000) / 10;
 }
 
-type Venda = { canal: 'mesa' | 'delivery'; dia: string; status: string; valor: number; itens: ItemPedidoMesa[] };
+type Venda = { canal: 'mesa' | 'delivery' | 'retirada'; dia: string; status: string; valor: number; itens: ItemPedidoMesa[] };
 
 // Indicadores do período [inicio, fim] (datas locais), comparados ao período anterior de mesmo tamanho.
 export function calcularMetricas(vendas: Venda[], hoje: string, dias: number) {
@@ -136,6 +139,7 @@ export function calcularMetricas(vendas: Venda[], hoje: string, dias: number) {
     por_canal: {
       mesa: soma(atual.filter((v) => v.canal === 'mesa')),
       delivery: soma(atual.filter((v) => v.canal === 'delivery')),
+      retirada: soma(atual.filter((v) => v.canal === 'retirada')),
     },
     por_dia: porDia,
     top_produtos: [...produtos.entries()]

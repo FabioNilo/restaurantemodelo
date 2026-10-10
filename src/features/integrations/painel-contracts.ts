@@ -34,10 +34,12 @@ export const STATUS_DELIVERY_LABELS: Record<StatusDelivery, string> = {
 export interface PedidoDelivery {
   id: string;
   numero: number;
+  /** 'retirada' = retirada no balcão (sem endereço, bairro nem taxa) */
+  tipo: 'entrega' | 'retirada';
   nome: string;
   telefone: string;
-  endereco: string;
-  bairro: string;
+  endereco: string | null;
+  bairro: string | null;
   complemento: string | null;
   observacoes: string | null;
   itens: ItemPedidoMesa[];
@@ -55,7 +57,7 @@ export interface MovimentoCaixa {
   id: string;
   /** horário local da loja, "YYYY-MM-DDTHH:mm:ss" */
   data: string;
-  canal: 'mesa' | 'delivery';
+  canal: 'mesa' | 'delivery' | 'retirada';
   referencia: string;
   cliente: string | null;
   metodo: FormaPagamento;
@@ -76,7 +78,7 @@ export interface Metricas {
   pedidos: Indicador;
   ticket_medio: Indicador;
   cancelados: number;
-  por_canal: { mesa: number; delivery: number };
+  por_canal: { mesa: number; delivery: number; retirada: number };
   por_dia: Array<{ dia: string; vendas: number; pedidos: number }>;
   top_produtos: Array<{ nome: string; quantidade: number }>;
 }

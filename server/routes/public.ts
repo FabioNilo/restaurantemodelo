@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { isDeliveryClosed, SITE_CLOSED_MESSAGE } from '../../src/lib/site-settings.js';
+import { isDeliveryClosed, isRetiradaClosed, SITE_CLOSED_MESSAGE } from '../../src/lib/site-settings.js';
 import { consultarTaxaEntrega, listarZonasEntrega } from '../bairros.js';
 import { getConfiguracoes, getPublicCatalog } from '../catalog.js';
 import { criarPedidoDelivery, getStatusPedidoDelivery, pedidoDeliverySchema } from '../delivery.js';
@@ -22,6 +22,7 @@ publicRoutes.get('/site-status', async (c) => {
     mensagem_fechado: settings.mensagem_fechado || SITE_CLOSED_MESSAGE,
     mostrar_aviso_fechado: true,
     entregas_abertas_agora: !isDeliveryClosed(settings),
+    retirada_aberta_agora: !isRetiradaClosed(settings),
   });
 });
 

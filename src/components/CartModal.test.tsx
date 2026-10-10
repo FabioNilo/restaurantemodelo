@@ -28,21 +28,21 @@ vi.mock('@/features/integrations/marmitas-api', async () => {
   };
 });
 
-function CheckoutHarness() {
+function CheckoutHarness({ retiradaDisponivel = false }: { retiradaDisponivel?: boolean }) {
   const produto = produtoComTamanhos;
 
   return (
     <CartProvider>
       <ProductCard marmita={produto} categoriaNome="Gnocchi" index={0} />
-      <CartModal isOpen onClose={() => undefined} whatsappNumber="557391473811" />
+      <CartModal isOpen onClose={() => undefined} whatsappNumber="557391473811" retiradaDisponivel={retiradaDisponivel} />
     </CartProvider>
   );
 }
 
-async function addItemAndOpenCheckout() {
+async function addItemAndOpenCheckout(opcoes: { retiradaDisponivel?: boolean } = {}) {
   const user = userEvent.setup();
 
-  render(<CheckoutHarness />);
+  render(<CheckoutHarness {...opcoes} />);
 
   await user.click(screen.getByRole('button', { name: /\bG\b/i }));
   await user.click(screen.getByRole('button', { name: /Adicionar/i }));
@@ -235,6 +235,63 @@ describe('CartModal', () => {
     });
     expect(window.location.assign).not.toHaveBeenCalled();
   }, 10000);
+
+  it('sem retirada liberada, só existe entrega (sem botões de escolha)', async () => {
+    await addItemAndOpenCheckout();
+
+    expect(screen.getByText(/Entrega apenas por delivery/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Retirada no balcão/i })).not.toBeInTheDocument();
+  });
+
+  it('retirada no balcão: só nome e telefone, sem bairro nem taxa, e segue para o WhatsApp', async () => {
+    const user = await addItemAndOpenCheckout({ retiradaDisponivel: true });
+
+    expect(screen.queryByText(/Entrega apenas por delivery/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Retirada no balcão/i }));
+
+    expect(screen.queryByLabelText(/Endereço/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Bairro/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Ponto de referência/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Retirada: Sem taxa')).toBeInTheDocument();
+    expect(screen.getByText('Subtotal: R$ 78,00')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i })).toBeEnabled();
+
+    await user.type(screen.getByLabelText(/Nome completo/i), 'Cliente Teste');
+    await user.type(screen.getByLabelText(/Telefone/i), '73999999999');
+    await user.click(screen.getByRole('button', { name: /^Débito$/i }));
+    await user.click(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i }));
+
+    await waitFor(() => expect(createPedidoN8n).toHaveBeenCalled());
+    const payload = vi.mocked(createPedidoN8n).mock.calls[0][0];
+    expect(payload).toMatchObject({ tipo_entrega: 'retirada', taxa_entrega: 0, valor_total: 78, subtotal: 78, forma_pagamento: 'cartao_debito' });
+    expect(payload).not.toHaveProperty('endereco_cliente');
+    expect(payload).not.toHaveProperty('bairro_cliente');
+
+    await waitFor(() => expect(window.location.assign).toHaveBeenCalled());
+    const message = decodeURIComponent(String(vi.mocked(window.location.assign).mock.calls[0][0]).split('text=')[1]);
+    expect(message).toContain('Tipo: Retirada no balcão');
+    expect(message).toContain('Total do pedido: R$ 78,00');
+    expect(message).not.toMatch(/Endereço|Bairro|Taxa de entrega/);
+  }, 10000);
+
+  it('retirada exige nome e telefone', async () => {
+    const user = await addItemAndOpenCheckout({ retiradaDisponivel: true });
+    await user.click(screen.getByRole('button', { name: /Retirada no balcão/i }));
+    await user.type(screen.getByLabelText(/Nome completo/i), 'Cliente Teste');
+    await user.click(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i }));
+
+    expect(createPedidoN8n).not.toHaveBeenCalled();
+    expect(window.location.assign).not.toHaveBeenCalled();
+  });
+
+  it('voltar para Entrega volta a exigir o bairro', async () => {
+    const user = await addItemAndOpenCheckout({ retiradaDisponivel: true });
+    await user.click(screen.getByRole('button', { name: /Retirada no balcão/i }));
+    await user.click(screen.getByText('Receba em casa'));
+
+    expect(await screen.findByText(/Selecione o bairro/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i })).toBeDisabled();
+  });
 
   it('opens WhatsApp even when n8n order registration fails', async () => {
     vi.mocked(createPedidoN8n).mockRejectedValueOnce(new Error('n8n indisponivel'));

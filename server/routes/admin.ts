@@ -35,6 +35,7 @@ import {
   listarBairros,
 } from '../bairros.js';
 import { ApiError, noStore, ok } from '../http.js';
+import { chavePublicaPush, enviarTeste, inscricaoSchema, removerInscricao, removerInscricaoSchema, salvarInscricao } from '../push.js';
 import {
   atualizarStatusDelivery,
   entregarDelivery,
@@ -189,6 +190,23 @@ const actions: Record<string, ActionDefinition> = {
     run: async (payload) => cancelarConta(contaIdSchema.parse(payload).id),
   },
   // --- Delivery ---
+  // --- Notificações push (PWA do painel): cada pessoa ativa no próprio aparelho ---
+  'push.config': {
+    roles: ['admin', 'gestor'],
+    run: async () => ({ publicKey: chavePublicaPush() }),
+  },
+  'push.subscribe': {
+    roles: ['admin', 'gestor'],
+    run: async (payload, user) => salvarInscricao(user.id, inscricaoSchema.parse(payload)),
+  },
+  'push.unsubscribe': {
+    roles: ['admin', 'gestor'],
+    run: async (payload, user) => removerInscricao(user.id, removerInscricaoSchema.parse(payload).endpoint),
+  },
+  'push.testar': {
+    roles: ['admin', 'gestor'],
+    run: async (_payload, user) => enviarTeste(user.id),
+  },
   // --- Bairros e taxas de entrega (Configurações) ---
   'bairros.list': {
     roles: ['admin'],

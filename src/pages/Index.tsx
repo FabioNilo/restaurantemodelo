@@ -27,6 +27,7 @@ function IndexContent() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         whatsappNumber={whatsappNumber}
+        retiradaDisponivel={siteStatus?.retirada_aberta_agora === true}
       />
     </div>
   );

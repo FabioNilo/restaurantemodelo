@@ -1,10 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import { isRetiradaClosed } from '../src/lib/site-settings.js';
 import { buscarBairroAtivo } from './bairros.js';
+import { getConfiguracoes } from './catalog.js';
 import { query } from './db.js';
 import { ApiError } from './http.js';
 import { carregarItensPrecificados, money, type ItemPedidoMesa } from './mesas.js';
 import { formaPagamentoSchema, fromCents, toCents } from './pagamentos.js';
+import { avisarPedidoNovo } from './push.js';
 
 // Pedidos de delivery: o site registra o pedido (preços do cardápio, calculados
 // aqui) e continua abrindo o WhatsApp. A equipe acompanha em /admin/delivery e,
@@ -15,7 +18,7 @@ export const MAX_PEDIDOS_POR_TELEFONE = 5; // a cada 10 minutos
 
 // Corpo enviado pelo CartModal (PedidoCreateRequest). Preços vindos do
 // navegador são ignorados: só produto, opção e quantidade importam.
-export const pedidoDeliverySchema = z.object({
+const pedidoBaseSchema = z.object({
   itens: z
     .array(
       z.object({
@@ -28,12 +31,26 @@ export const pedidoDeliverySchema = z.object({
     .max(40, 'Pedido grande demais. Divida em dois pedidos.'),
   nome_cliente: z.string().trim().min(2, 'Informe seu nome.').max(80),
   telefone_cliente: z.string().trim().min(8, 'Informe um telefone válido.').max(30),
-  endereco_cliente: z.string().trim().min(3, 'Informe o endereço.').max(200),
-  bairro_cliente: z.string().trim().min(2, 'Escolha o bairro.').max(80),
+  // 'retirada' = retirada no balcão: sem endereço, bairro nem taxa.
+  tipo_entrega: z.enum(['delivery', 'retirada']).default('delivery'),
+  endereco_cliente: z.string().trim().max(200).nullish(),
+  bairro_cliente: z.string().trim().max(80).nullish(),
   complemento_cliente: z.string().trim().max(200).nullish(),
   observacoes_cliente: z.string().trim().max(500).nullish(),
   forma_pagamento: formaPagamentoSchema.default('pix'),
   tracking_base_url: z.string().url().max(300).optional(),
+});
+
+export const pedidoDeliverySchema = pedidoBaseSchema.superRefine((pedido, ctx) => {
+  if (pedido.tipo_entrega === 'retirada') return;
+
+  if (!pedido.endereco_cliente || pedido.endereco_cliente.length < 3) {
+    ctx.addIssue({ code: 'custom', path: ['endereco_cliente'], message: 'Informe o endereço.' });
+  }
+
+  if (!pedido.bairro_cliente || pedido.bairro_cliente.length < 2) {
+    ctx.addIssue({ code: 'custom', path: ['bairro_cliente'], message: 'Escolha o bairro.' });
+  }
 });
 
 export const statusDeliverySchema = z.object({
@@ -53,8 +70,9 @@ interface DeliveryRow {
   tracking_token: string;
   nome: string;
   telefone: string;
-  endereco: string;
-  bairro: string;
+  tipo: 'entrega' | 'retirada';
+  endereco: string | null;
+  bairro: string | null;
   complemento: string | null;
   observacoes: string | null;
   itens: ItemPedidoMesa[];
@@ -69,7 +87,7 @@ interface DeliveryRow {
 }
 
 const COLUNAS =
-  'id, numero, tracking_token, nome, telefone, endereco, bairro, complemento, observacoes, itens, subtotal, taxa_entrega, valor_total, forma_pagamento, status, created_at, updated_at, entregue_em';
+  'id, numero, tracking_token, tipo, nome, telefone, endereco, bairro, complemento, observacoes, itens, subtotal, taxa_entrega, valor_total, forma_pagamento, status, created_at, updated_at, entregue_em';
 
 const somenteDigitos = (value: string) => value.replace(/\D/g, '');
 
@@ -77,6 +95,7 @@ function toDelivery(row: DeliveryRow) {
   return {
     id: row.id,
     numero: Number(row.numero),
+    tipo: row.tipo,
     nome: row.nome,
     telefone: row.telefone,
     endereco: row.endereco,
@@ -113,12 +132,27 @@ export async function criarPedidoDelivery(input: z.infer<typeof pedidoDeliverySc
     throw new ApiError(429, 'Muitos pedidos em sequência. Aguarde alguns minutos ou fale conosco pelo WhatsApp.');
   }
 
-  // Só bairros cadastrados e ativos; a taxa vem do cadastro, nunca do navegador.
-  const bairro = await buscarBairroAtivo(input.bairro_cliente);
+  const retirada = input.tipo_entrega === 'retirada';
 
-  if (!bairro) {
+  if (retirada) {
+    const settings = await getConfiguracoes();
+
+    if (isRetiradaClosed(settings)) {
+      throw new ApiError(
+        409,
+        settings.retirada_ativa ? 'Retirada no balcão indisponível neste horário.' : 'A retirada no balcão não está disponível no momento.'
+      );
+    }
+  }
+
+  // Entrega: só bairros cadastrados e ativos; a taxa vem do cadastro, nunca do navegador.
+  const bairro = retirada ? null : await buscarBairroAtivo(input.bairro_cliente ?? '');
+
+  if (!retirada && !bairro) {
     throw new ApiError(400, 'Ainda não entregamos neste bairro. Escolha um bairro da lista.');
   }
+
+  const taxa = bairro?.taxa ?? 0;
 
   // O id do item no carrinho é "produto" ou "produto:opcao".
   const { itens, total } = await carregarItensPrecificados(
@@ -133,32 +167,41 @@ export async function criarPedidoDelivery(input: z.infer<typeof pedidoDeliverySc
   const [row] = await query<DeliveryRow>(
     `insert into pedidos_delivery
        (tracking_token, nome, telefone, endereco, bairro, bairro_id, complemento, observacoes, itens,
-        subtotal, taxa_entrega, valor_total, forma_pagamento)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13)
+        subtotal, taxa_entrega, valor_total, forma_pagamento, tipo)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14)
      returning ${COLUNAS}`,
     [
       token,
       input.nome_cliente,
       telefone,
-      input.endereco_cliente,
-      bairro.nome,
-      bairro.id,
+      retirada ? null : input.endereco_cliente,
+      bairro?.nome ?? null,
+      bairro?.id ?? null,
       input.complemento_cliente || null,
       input.observacoes_cliente || null,
       JSON.stringify(itens),
       total,
-      bairro.taxa,
-      fromCents(toCents(total) + toCents(bairro.taxa)),
+      taxa,
+      fromCents(toCents(total) + toCents(taxa)),
       input.forma_pagamento,
+      retirada ? 'retirada' : 'entrega',
     ]
   );
+
+  await avisarPedidoNovo({
+    titulo: retirada ? 'Novo pedido de retirada' : 'Novo pedido de delivery',
+    corpo: `Pedido nº ${row.numero} · R$ ${money(row.valor_total).toFixed(2).replace('.', ',')}`,
+    url: '/admin/delivery',
+    tag: `delivery-${row.numero}`,
+  });
 
   const base = input.tracking_base_url?.replace(/\/$/, '');
   return {
     id: row.id,
     status: row.status,
     subtotal: money(row.subtotal),
-    taxa_entrega: bairro.taxa,
+    tipo: row.tipo,
+    taxa_entrega: taxa,
     valor_total: money(row.valor_total),
     created_at: new Date(row.created_at).toISOString(),
     tracking_token: token,
@@ -186,11 +229,11 @@ export async function getStatusPedidoDelivery(id: string, token: string) {
     can_cancel: false,
     nome_cliente: pedido.nome,
     telefone_cliente: pedido.telefone,
-    endereco_cliente: pedido.endereco,
-    bairro_cliente: pedido.bairro,
+    endereco_cliente: pedido.endereco ?? '',
+    bairro_cliente: pedido.bairro ?? '',
     complemento_cliente: pedido.complemento,
     observacoes_cliente: pedido.observacoes,
-    tipo_entrega: 'delivery',
+    tipo_entrega: pedido.tipo === 'retirada' ? 'retirada' : 'delivery',
     forma_pagamento: pedido.forma_pagamento,
     itens: pedido.itens.map((item) => ({
       nome: item.nome,
@@ -224,12 +267,19 @@ export async function listarDelivery() {
 export async function atualizarStatusDelivery(input: z.infer<typeof statusDeliverySchema>) {
   const rows = await query<{ id: string }>(
     `update pedidos_delivery set status = $2, updated_at = now()
-      where id = $1 and status not in ('entregue', 'cancelado')
+      where id = $1 and status not in ('entregue', 'cancelado') and (tipo = 'entrega' or $2 = 'cancelado')
       returning id`,
     [input.id, input.status]
   );
 
   if (rows.length === 0) {
+    const [pedido] = await query<{ tipo: string; status: string }>('select tipo, status from pedidos_delivery where id = $1', [input.id]);
+
+    // Retirada no balcão não tem cozinha nem entregador: só vai de recebido a retirado (ou cancelado).
+    if (pedido?.tipo === 'retirada' && !['entregue', 'cancelado'].includes(pedido.status)) {
+      throw new ApiError(400, 'A retirada no balcão não tem etapa de preparo ou entrega: marque como retirado ou cancele.');
+    }
+
     throw new ApiError(404, 'Pedido não encontrado ou já finalizado.');
   }
 
@@ -238,8 +288,8 @@ export async function atualizarStatusDelivery(input: z.infer<typeof statusDelive
 
 // Baixa como entregue: confirma a forma de pagamento (e a taxa, se houver) e lança no caixa.
 export async function entregarDelivery(input: z.infer<typeof entregarSchema>, usuarioId: string) {
-  const [pedido] = await query<{ subtotal: string; taxa_entrega: string | null }>(
-    "select subtotal, taxa_entrega from pedidos_delivery where id = $1 and status not in ('entregue', 'cancelado')",
+  const [pedido] = await query<{ subtotal: string; taxa_entrega: string | null; tipo: 'entrega' | 'retirada' }>(
+    "select subtotal, taxa_entrega, tipo from pedidos_delivery where id = $1 and status not in ('entregue', 'cancelado')",
     [input.id]
   );
 
@@ -247,7 +297,8 @@ export async function entregarDelivery(input: z.infer<typeof entregarSchema>, us
     throw new ApiError(404, 'Pedido não encontrado ou já finalizado.');
   }
 
-  const taxa = input.taxa_entrega ?? (pedido.taxa_entrega === null ? 0 : Number(pedido.taxa_entrega));
+  // Retirada no balcão nunca tem taxa de entrega.
+  const taxa = pedido.tipo === 'retirada' ? 0 : (input.taxa_entrega ?? (pedido.taxa_entrega === null ? 0 : Number(pedido.taxa_entrega)));
   const total = fromCents(toCents(Number(pedido.subtotal)) + toCents(taxa));
 
   const [entregue] = await query<{ id: string; valor_total: string }>(

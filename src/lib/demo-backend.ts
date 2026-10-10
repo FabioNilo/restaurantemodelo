@@ -5,7 +5,7 @@
 // o próprio estado; nada disso é compartilhado ou enviado a lugar nenhum.
 import { cardapioLocal } from '@/data/cardapio';
 import type { AuthSession } from '@/features/integrations/n8n-contracts';
-import { DEFAULT_SITE_SETTINGS, isDeliveryClosed, SITE_CLOSED_MESSAGE, type ConfiguracoesSite, type ConfiguracoesSiteUpdate } from '@/lib/site-settings';
+import { DEFAULT_SITE_SETTINGS, isDeliveryClosed, isRetiradaClosed, SITE_CLOSED_MESSAGE, type ConfiguracoesSite, type ConfiguracoesSiteUpdate } from '@/lib/site-settings';
 import { ESTOQUE_BAIXO, SEM_CATEGORIA, type Categoria, type Marmita, type MarmitaAdminListItem, type MarmitaFiltros, type ProdutoLoteAlteracao } from '@/types/product';
 
 export const DEMO_ADMIN_USERNAME = 'admin';
@@ -324,5 +324,6 @@ export async function demoGetSitePublicStatus() {
     mensagem_fechado: settings.mensagem_fechado || SITE_CLOSED_MESSAGE,
     mostrar_aviso_fechado: true,
     entregas_abertas_agora: entregasAbertasAgora,
+    retirada_aberta_agora: !isRetiradaClosed(settings),
   };
 }

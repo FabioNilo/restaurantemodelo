@@ -16,6 +16,8 @@ export interface SitePublicStatus {
   mensagem_fechado: string;
   mostrar_aviso_fechado: boolean;
   entregas_abertas_agora: boolean;
+  /** Retirada no balcão disponível agora (interruptor ligado e dentro do horário). */
+  retirada_aberta_agora?: boolean;
 }
 
 async function fetchSitePublicStatus(): Promise<SitePublicStatus> {
@@ -55,7 +57,8 @@ export function useSitePublicStatusQuery() {
         mensagem_fechado: SITE_CLOSED_MESSAGE,
         mostrar_aviso_fechado: true,
         entregas_abertas_agora: entregasAbertasAgora,
-      };
+        retirada_aberta_agora: false,
+      } satisfies SitePublicStatus;
     },
     // Sem isso, o React Query trata o initialData acima como recem-buscado e,
     // com staleTime de 1 minuto, so ia buscar o status real do backend depois

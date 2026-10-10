@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, Landmark, Loader2, MapPin, MessageCircle, QrCode, Truck, X } from 'lucide-react';
+import { CreditCard, Landmark, Loader2, MapPin, MessageCircle, QrCode, Store, Truck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,8 @@ interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
   whatsappNumber?: string;
+  /** Retirada no balcão aberta agora (interruptor do admin ligado e dentro do horário). */
+  retiradaDisponivel?: boolean;
 }
 
 // Formas aceitas em todo o site (src/lib/pagamentos.ts): Pix, Débito e Crédito.
@@ -46,6 +48,7 @@ export function CartModal({
   isOpen,
   onClose,
   whatsappNumber = DEFAULT_SITE_SETTINGS.whatsapp_numero,
+  retiradaDisponivel = false,
 }: CartModalProps) {
   const { items, totalPrice, clearCart } = useCart();
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
@@ -54,6 +57,7 @@ export function CartModal({
   const [deliveryZonesLoaded, setDeliveryZonesLoaded] = useState(false);
   const [deliveryZonesAttempt, setDeliveryZonesAttempt] = useState(0);
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
+  const [tipoPedido, setTipoPedido] = useState<'entrega' | 'retirada'>('entrega');
   const [submitting, setSubmitting] = useState(false);
   const [customerData, setCustomerData] = useState<CustomerData>({
     name: '',
@@ -65,14 +69,17 @@ export function CartModal({
     paymentMethod: 'pix',
   });
 
+  // Retirada no balcão: só se o admin liberou (e dentro do horário). Sem endereço, bairro nem taxa.
+  const retirada = retiradaDisponivel && tipoPedido === 'retirada';
+
   // Bairros e taxas cadastrados em /admin/configuracoes. Só dá para pedir
   // escolhendo um bairro da lista; a taxa entra no total na hora.
   const selectedDeliveryZone = deliveryZones.find((zone) => zone.bairro === customerData.neighborhood) ?? null;
-  const deliveryFee = selectedDeliveryZone ? Number(selectedDeliveryZone.taxa ?? selectedDeliveryZone.taxa_quinta_sexta ?? 0) : null;
+  const deliveryFee = retirada ? 0 : selectedDeliveryZone ? Number(selectedDeliveryZone.taxa ?? selectedDeliveryZone.taxa_quinta_sexta ?? 0) : null;
   const orderTotal = totalPrice + (deliveryFee ?? 0);
   const noDeliveryZones = deliveryZonesLoaded && deliveryZones.length === 0;
   const deliveryFeeSummaryLabel =
-    deliveryFee === null ? 'Escolha o bairro' : deliveryFee === 0 ? 'Grátis' : formatCurrency(deliveryFee);
+    retirada ? 'Sem taxa' : deliveryFee === null ? 'Escolha o bairro' : deliveryFee === 0 ? 'Grátis' : formatCurrency(deliveryFee);
 
   useEffect(() => {
     if (!isOpen || step !== 'checkout') {
@@ -133,12 +140,12 @@ export function CartModal({
       '*Cliente*',
       `Nome: ${customerData.name}`,
       `WhatsApp: ${customerData.phone}`,
-      `Endereço: ${customerData.address}`,
-      `Bairro: ${customerData.neighborhood}`,
-      `Ponto de referência: ${customerData.complement}`,
+      ...(retirada
+        ? []
+        : [`Endereço: ${customerData.address}`, `Bairro: ${customerData.neighborhood}`, `Ponto de referência: ${customerData.complement}`]),
       '',
-      '*Entrega e pagamento*',
-      'Tipo: Delivery',
+      retirada ? '*Retirada e pagamento*' : '*Entrega e pagamento*',
+      retirada ? 'Tipo: Retirada no balcão (pagamento na retirada)' : 'Tipo: Delivery',
       `Pagamento: ${PAYMENT_LABELS[customerData.paymentMethod ?? 'pix']}`,
       '',
       '*Itens do pedido*',
@@ -146,7 +153,7 @@ export function CartModal({
       '',
       '*Resumo*',
       `Subtotal: ${formatCurrency(totalPrice)}`,
-      `Taxa de entrega (${customerData.neighborhood}): ${formatCurrency(deliveryFee)}`,
+      ...(retirada ? [] : [`Taxa de entrega (${customerData.neighborhood}): ${formatCurrency(deliveryFee)}`]),
       `Total do pedido: ${formatCurrency(finalTotal)}`,
     ];
 
@@ -171,7 +178,11 @@ export function CartModal({
   };
 
   const handleSubmitOrder = async () => {
-    if (!customerData.name || !customerData.phone || !customerData.address || !customerData.complement?.trim()) {
+    const faltaDado = retirada
+      ? !customerData.name || !customerData.phone
+      : !customerData.name || !customerData.phone || !customerData.address || !customerData.complement?.trim();
+
+    if (faltaDado) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos obrigatórios.',
@@ -180,7 +191,7 @@ export function CartModal({
       return;
     }
 
-    if (!selectedDeliveryZone || deliveryFee === null) {
+    if (!retirada && (!selectedDeliveryZone || deliveryFee === null)) {
       toast({
         title: 'Escolha o bairro',
         description: 'Selecione o bairro de entrega na lista para ver a taxa e finalizar o pedido.',
@@ -212,11 +223,15 @@ export function CartModal({
         valor_total: orderTotal,
         nome_cliente: customerData.name,
         telefone_cliente: customerData.phone,
-        endereco_cliente: customerData.address,
-        bairro_cliente: selectedDeliveryZone.bairro,
-        complemento_cliente: customerData.complement.trim(),
+        ...(retirada
+          ? {}
+          : {
+              endereco_cliente: customerData.address,
+              bairro_cliente: selectedDeliveryZone!.bairro,
+              complemento_cliente: customerData.complement?.trim(),
+            }),
         observacoes_cliente: customerData.observations || null,
-        tipo_entrega: 'delivery',
+        tipo_entrega: retirada ? 'retirada' : 'delivery',
         forma_pagamento: customerData.paymentMethod ?? 'pix',
         tracking_base_url: buildTrackingBaseUrl(),
       });
@@ -239,7 +254,7 @@ export function CartModal({
         toast({ title: 'Não foi possível enviar o pedido', description: getApiErrorMessage(error), variant: 'destructive' });
 
         // Bairro pausado enquanto o cliente preenchia: recarrega a lista.
-        if (status === 400) setDeliveryZonesAttempt((n) => n + 1);
+        if (status === 400 && !retirada) setDeliveryZonesAttempt((n) => n + 1);
         return;
       }
 
@@ -292,7 +307,7 @@ export function CartModal({
           <div>
             <p className="brand-caps text-[0.65rem] text-primary">{BRAND.name}</p>
             <h2 className="font-display text-2xl font-black">
-              {step === 'cart' ? 'Seu carrinho' : 'Delivery'}
+              {step === 'cart' ? 'Seu carrinho' : retirada ? 'Retirada no balcão' : 'Delivery'}
             </h2>
           </div>
           <button
@@ -311,15 +326,45 @@ export function CartModal({
             </>
           ) : (
             <div className="grid gap-5">
-              <div className="rounded-2xl border border-secondary/20 bg-secondary/10 p-4">
-                <div className="flex items-center gap-2 font-display text-lg font-black">
-                  <Truck className="h-5 w-5 text-gold-ink" />
-                  Entrega apenas por delivery
+              {retiradaDisponivel ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3" role="group" aria-label="Como você quer receber">
+                    {(
+                      [
+                        { value: 'entrega', label: 'Entrega', detalhe: 'Receba em casa', icon: Truck },
+                        { value: 'retirada', label: 'Retirada no balcão', detalhe: 'Sem taxa de entrega', icon: Store },
+                      ] as const
+                    ).map(({ value, label, detalhe, icon: Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={tipoPedido === value}
+                        onClick={() => setTipoPedido(value)}
+                        className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all sm:p-4 ${tipoPedido === value ? 'border-primary bg-primary/15 shadow-soft' : 'border-border bg-card hover:border-primary/50'}`}
+                      >
+                        <span className="flex items-center gap-2 font-display text-base font-black sm:text-lg">
+                          <Icon className="h-5 w-5 text-gold-ink" />
+                          {label}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{detalhe}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {retirada && (
+                    <p className="text-sm text-muted-foreground">Você retira e paga no balcão. Avisamos pelo WhatsApp quando estiver pronto.</p>
+                  )}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Retirada no local não está disponível neste pedido.
-                </p>
-              </div>
+              ) : (
+                <div className="rounded-2xl border border-secondary/20 bg-secondary/10 p-4">
+                  <div className="flex items-center gap-2 font-display text-lg font-black">
+                    <Truck className="h-5 w-5 text-gold-ink" />
+                    Entrega apenas por delivery
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Retirada no local não está disponível neste pedido.
+                  </p>
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -332,50 +377,54 @@ export function CartModal({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Endereço para entrega *</Label>
-                <Input id="address" name="address" type="text" autoComplete="street-address" value={customerData.address} onChange={handleInputChange} placeholder="Rua, número" />
-              </div>
+              {!retirada && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Endereço para entrega *</Label>
+                    <Input id="address" name="address" type="text" autoComplete="street-address" value={customerData.address} onChange={handleInputChange} placeholder="Rua, número" />
+                  </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="neighborhood">Bairro *</Label>
-                  <Select value={customerData.neighborhood} onValueChange={handleNeighborhoodChange} disabled={deliveryZones.length === 0}>
-                    <SelectTrigger id="neighborhood" aria-label="Bairro">
-                      <SelectValue placeholder={deliveryZonesLoading && deliveryZones.length === 0 ? 'Carregando bairros...' : 'Selecione o bairro'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {deliveryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.bairro}>
-                          {zone.bairro} — {Number(zone.taxa ?? 0) === 0 ? 'entrega grátis' : formatCurrency(Number(zone.taxa ?? 0))}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {deliveryZonesError ? (
-                    <p className="text-xs text-destructive">
-                      Não consegui carregar os bairros atendidos.{' '}
-                      <button type="button" className="font-bold underline" onClick={() => setDeliveryZonesAttempt((n) => n + 1)}>
-                        Tentar de novo
-                      </button>
-                    </p>
-                  ) : noDeliveryZones ? (
-                    <p className="text-xs text-destructive">No momento não há bairros com entrega disponível. Fale conosco pelo WhatsApp.</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {deliveryZonesLoading && deliveryZones.length === 0
-                        ? 'Carregando bairros atendidos...'
-                        : selectedDeliveryZone
-                          ? `Taxa de entrega para ${selectedDeliveryZone.bairro}: ${deliveryFeeSummaryLabel}`
-                          : 'Entregamos apenas nos bairros da lista.'}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="complement">Ponto de referência *</Label>
-                  <Input id="complement" name="complement" type="text" value={customerData.complement} onChange={handleInputChange} placeholder="Apto, referência" />
-                </div>
-              </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="neighborhood">Bairro *</Label>
+                      <Select value={customerData.neighborhood} onValueChange={handleNeighborhoodChange} disabled={deliveryZones.length === 0}>
+                        <SelectTrigger id="neighborhood" aria-label="Bairro">
+                          <SelectValue placeholder={deliveryZonesLoading && deliveryZones.length === 0 ? 'Carregando bairros...' : 'Selecione o bairro'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {deliveryZones.map((zone) => (
+                            <SelectItem key={zone.id} value={zone.bairro}>
+                              {zone.bairro} — {Number(zone.taxa ?? 0) === 0 ? 'entrega grátis' : formatCurrency(Number(zone.taxa ?? 0))}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {deliveryZonesError ? (
+                        <p className="text-xs text-destructive">
+                          Não consegui carregar os bairros atendidos.{' '}
+                          <button type="button" className="font-bold underline" onClick={() => setDeliveryZonesAttempt((n) => n + 1)}>
+                            Tentar de novo
+                          </button>
+                        </p>
+                      ) : noDeliveryZones ? (
+                        <p className="text-xs text-destructive">No momento não há bairros com entrega disponível. Fale conosco pelo WhatsApp.</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {deliveryZonesLoading && deliveryZones.length === 0
+                            ? 'Carregando bairros atendidos...'
+                            : selectedDeliveryZone
+                              ? `Taxa de entrega para ${selectedDeliveryZone.bairro}: ${deliveryFeeSummaryLabel}`
+                              : 'Entregamos apenas nos bairros da lista.'}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="complement">Ponto de referência *</Label>
+                      <Input id="complement" name="complement" type="text" value={customerData.complement} onChange={handleInputChange} placeholder="Apto, referência" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-3">
                 <Label>Forma de pagamento *</Label>
@@ -407,13 +456,13 @@ export function CartModal({
           <div className="border-t border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
-                <MapPin className="h-4 w-4 text-gold-ink" />
-                Delivery
+                {retirada ? <Store className="h-4 w-4 text-gold-ink" /> : <MapPin className="h-4 w-4 text-gold-ink" />}
+                {retirada ? 'Retirada no balcão' : 'Delivery'}
               </span>
               <div className="text-right">
                 <p className="text-xs font-bold text-muted-foreground">Subtotal: {formatCurrency(totalPrice)}</p>
                 {step === 'checkout' ? (
-                  <p className="text-xs font-bold text-muted-foreground">Entrega: {deliveryFeeSummaryLabel}</p>
+                  <p className="text-xs font-bold text-muted-foreground">{retirada ? 'Retirada' : 'Entrega'}: {deliveryFeeSummaryLabel}</p>
                 ) : null}
                 <span className="font-display text-3xl font-black text-gold-ink">{formatCurrency(step === 'checkout' ? orderTotal : totalPrice)}</span>
               </div>
@@ -430,7 +479,7 @@ export function CartModal({
                   size="lg"
                   className="w-full rounded-full font-black"
                   onClick={handleSubmitOrder}
-                  disabled={submitting || !selectedDeliveryZone}
+                  disabled={submitting || (!retirada && !selectedDeliveryZone)}
                 >
                   {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageCircle className="mr-2 h-5 w-5" />}
                   {submitting ? 'Enviando...' : 'Enviar pedido no WhatsApp'}

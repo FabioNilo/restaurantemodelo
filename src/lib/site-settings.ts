@@ -2,6 +2,8 @@ export interface ConfiguracoesSite {
   id: number;
   whatsapp_numero: string;
   entregas_ativas: boolean;
+  /** Aceita pedidos de retirada no balcão pelo site (mesmos dias e horário do delivery). */
+  retirada_ativa: boolean;
   hora_abertura: string;
   hora_fechamento: string;
   dias_entrega: number[];
@@ -21,6 +23,7 @@ export const DEFAULT_SITE_SETTINGS: ConfiguracoesSite = {
   // WhatsApp do Nosso Bistrô Café (do cardápio de delivery).
   whatsapp_numero: '5573998040470',
   entregas_ativas: true,
+  retirada_ativa: false,
   hora_abertura: '07:00:00',
   hora_fechamento: '19:00:00',
   dias_entrega: [0, 1, 2, 3, 4, 5, 6],
@@ -91,11 +94,8 @@ function timeToMinutes(timeValue: string) {
   return Number(hours) * 60 + Number(minutes);
 }
 
-export function isDeliveryClosed(settings: ConfiguracoesSite, currentDate = new Date()) {
-  if (!settings.entregas_ativas) {
-    return true;
-  }
-
+// Fora dos dias e do horário de atendimento (vale para delivery e retirada).
+export function isOutsideServiceHours(settings: ConfiguracoesSite, currentDate = new Date()) {
   const { weekday, minutes } = getNowInTimezone(settings.timezone || DEFAULT_SITE_SETTINGS.timezone, currentDate);
   const activeDays = settings.dias_entrega || [];
 
@@ -111,4 +111,14 @@ export function isDeliveryClosed(settings: ConfiguracoesSite, currentDate = new 
   }
 
   return minutes < openingMinutes && minutes > closingMinutes;
+}
+
+export function isDeliveryClosed(settings: ConfiguracoesSite, currentDate = new Date()) {
+  return !settings.entregas_ativas || isOutsideServiceHours(settings, currentDate);
+}
+
+// Retirada no balcão: interruptor próprio ligado, dentro dos dias e do horário.
+// Independe de "Entregas ativas" (dá para parar o delivery e seguir com o balcão).
+export function isRetiradaClosed(settings: ConfiguracoesSite, currentDate = new Date()) {
+  return !settings.retirada_ativa || isOutsideServiceHours(settings, currentDate);
 }

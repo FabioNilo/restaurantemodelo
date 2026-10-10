@@ -11,13 +11,13 @@ export interface ResumoCaixa {
   taxaEntrega: number;
   quantidade: number;
   porForma: Record<FormaPagamento, number>;
-  porCanal: { mesa: number; delivery: number };
+  porCanal: { mesa: number; delivery: number; retirada: number };
   porDia: Array<{ dia: string } & Record<FormaPagamento, number> & { total: number; taxaEntrega: number }>;
 }
 
 export function resumirCaixa(movimentos: MovimentoCaixa[]): ResumoCaixa {
   const porForma = Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, 0])) as Record<FormaPagamento, number>;
-  const porCanal = { mesa: 0, delivery: 0 };
+  const porCanal = { mesa: 0, delivery: 0, retirada: 0 };
   const dias = new Map<string, Record<FormaPagamento, number>>();
   const taxasDia = new Map<string, number>();
   let total = 0;
@@ -43,7 +43,7 @@ export function resumirCaixa(movimentos: MovimentoCaixa[]): ResumoCaixa {
     taxaEntrega: fromCents(taxaEntrega),
     quantidade: movimentos.length,
     porForma: Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, fromCents(porForma[f])])) as Record<FormaPagamento, number>,
-    porCanal: { mesa: fromCents(porCanal.mesa), delivery: fromCents(porCanal.delivery) },
+    porCanal: { mesa: fromCents(porCanal.mesa), delivery: fromCents(porCanal.delivery), retirada: fromCents(porCanal.retirada) },
     porDia: [...dias.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([dia, valores]) => ({
@@ -76,13 +76,14 @@ export function planilhasFluxoCaixa(movimentos: MovimentoCaixa[], periodo: { de:
       ['Por canal', 'Valor'],
       ['Mesas', resumo.porCanal.mesa],
       ['Delivery', resumo.porCanal.delivery],
+      ['Retirada no balcão', resumo.porCanal.retirada],
     ] as Array<Array<string | number>>,
     movimentacoes: {
       cabecalho: ['Data', 'Hora', 'Canal', 'Referência', 'Cliente', 'Forma de pagamento', 'Itens', 'Taxa de entrega', 'Valor'],
       linhas: movimentos.map((m) => [
         dataBR(m.data),
         m.data.slice(11, 16),
-        m.canal === 'mesa' ? 'Mesa' : 'Delivery',
+        m.canal === 'mesa' ? 'Mesa' : m.canal === 'retirada' ? 'Retirada' : 'Delivery',
         m.referencia,
         m.cliente ?? '',
         FORMA_PAGAMENTO_LABELS[m.metodo],

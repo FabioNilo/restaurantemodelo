@@ -117,6 +117,42 @@ describe('downloadPedidoThermalLabelPdf', () => {
     expect(pdfText).toContain('ENTREGA: R$ 5,00');
     expect(pdfText).toContain('TOTAL: R$ 77,00');
   });
+
+  it('retirada no balcão: sem endereço, referência nem taxa de entrega', async () => {
+    let generatedBlob: Blob | MediaSource | null = null;
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      generatedBlob = blob;
+      return 'blob:retirada';
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    downloadPedidoThermalLabelPdf(
+      {
+        id: '1030',
+        nome_cliente: 'Carla',
+        telefone_cliente: '73988887777',
+        bairro_cliente: '',
+        complemento_cliente: null,
+        endereco_cliente: '',
+        observacoes_cliente: null,
+        forma_pagamento: 'cartao_debito',
+        tipo_entrega: 'retirada',
+        taxa_entrega: 0,
+        valor_total: 35.9,
+        created_at: '2026-06-28T22:42:00.000Z',
+      },
+      [{ quantidade: 1, nome: 'Torta olho de sogra', preco: 35.9 }]
+    );
+
+    const pdfText = await (generatedBlob as unknown as Blob).text();
+    expect(pdfText).toContain('RETIRADA NO BALCAO');
+    expect(pdfText.match(/NO BALCAO/g)?.length).toBe(2); // título e forma de pagamento
+    expect(pdfText).toContain('TOTAL: R$ 35,90');
+    expect(pdfText).not.toContain('ENTREGA:');
+    expect(pdfText).not.toContain('END:');
+    expect(pdfText).not.toContain('REF:');
+  });
 });
 
 describe('buildMesaContaReceiptLines', () => {

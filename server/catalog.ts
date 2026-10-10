@@ -36,6 +36,7 @@ interface ConfiguracoesRow {
   id: number;
   whatsapp_numero: string;
   entregas_ativas: boolean;
+  retirada_ativa: boolean;
   hora_abertura: string;
   hora_fechamento: string;
   dias_entrega: number[];
@@ -79,6 +80,7 @@ function toConfiguracoes(row: ConfiguracoesRow): ConfiguracoesSite {
     id: row.id,
     whatsapp_numero: row.whatsapp_numero,
     entregas_ativas: row.entregas_ativas,
+    retirada_ativa: row.retirada_ativa,
     hora_abertura: row.hora_abertura,
     hora_fechamento: row.hora_fechamento,
     dias_entrega: row.dias_entrega,
@@ -134,6 +136,7 @@ export const configuracoesSaveSchema = z
       .transform((value) => value.replace(/\D/g, ''))
       .refine((value) => value.length >= 10 && value.length <= 13, 'Número de WhatsApp inválido.'),
     entregas_ativas: z.boolean(),
+    retirada_ativa: z.boolean(),
     hora_abertura: horaSchema,
     hora_fechamento: horaSchema,
     dias_entrega: z.array(z.number().int().min(0).max(6)).max(7),

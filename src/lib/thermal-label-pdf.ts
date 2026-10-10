@@ -190,6 +190,8 @@ function buildReceiptLines(pedido: ThermalLabelPedido, items: ThermalLabelItem[]
 
   const total = Number(pedido.valor_total) || 0;
   const deliveryFee = getDeliveryFee(pedido, items);
+  // Retirada no balcão: sem endereço, referência nem taxa de entrega.
+  const retirada = pedido.tipo_entrega === 'retirada';
   const deliveryAddress = [
     compactText(pedido.endereco_cliente, ''),
     compactText(pedido.bairro_cliente, ''),
@@ -198,19 +200,20 @@ function buildReceiptLines(pedido: ThermalLabelPedido, items: ThermalLabelItem[]
   return [
     { text: BRAND.name.toUpperCase(), font: 'title', align: 'center' },
     { text: 'COMPROVANTE DO PEDIDO', font: 'bold', align: 'center' },
+    retirada ? { text: 'RETIRADA NO BALCAO', font: 'bold', align: 'center' } : null,
     { text: DIVIDER, align: 'center' },
     { text: `DATA: ${compactText(`${createdAt} ${createdTime}`.trim())}` },
     { text: 'CLIENTE', font: 'bold', align: 'center' },
     { text: `NOME: ${compactText(pedido.nome_cliente).toUpperCase()}` },
     { text: `TEL: ${compactText(pedido.telefone_cliente)}` },
-    { text: `END: ${compactText(deliveryAddress).toUpperCase()}` },
-    { text: `REF: ${compactText(pedido.complemento_cliente).toUpperCase()}` },
+    retirada ? null : { text: `END: ${compactText(deliveryAddress).toUpperCase()}` },
+    retirada ? null : { text: `REF: ${compactText(pedido.complemento_cliente).toUpperCase()}` },
     { text: DIVIDER, align: 'center' },
     { text: 'PEDIDO', font: 'bold', align: 'center' },
     ...itemLines,
     { text: DIVIDER, align: 'center' },
-    { text: `PAGAMENTO: ${getPaymentLabel(pedido.forma_pagamento)}` },
-    { text: `ENTREGA: ${formatCurrency(deliveryFee)}` },
+    { text: `PAGAMENTO: ${getPaymentLabel(pedido.forma_pagamento)}${retirada ? ' (NO BALCAO)' : ''}` },
+    retirada ? null : { text: `ENTREGA: ${formatCurrency(deliveryFee)}` },
     { text: `TOTAL: ${formatCurrency(total)}`, font: 'bold' },
     pedido.observacoes_cliente ? { text: '' } : null,
     pedido.observacoes_cliente ? { text: 'OBS GERAL:', font: 'bold' } : null,

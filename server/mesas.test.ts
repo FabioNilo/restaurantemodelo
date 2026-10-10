@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
+const { queryMock, avisarMock } = vi.hoisted(() => ({ queryMock: vi.fn(), avisarMock: vi.fn() }));
 vi.mock('./db.js', () => ({ query: queryMock, getSql: vi.fn() }));
+vi.mock('./push.js', async (original) => ({ ...(await original<typeof import('./push.js')>()), avisarPedidoNovo: avisarMock }));
 
 import { app } from './app.js';
 import { signSession } from './auth.js';
@@ -68,6 +69,7 @@ function postPedido(body: Record<string, unknown>) {
 beforeEach(() => {
   process.env.SESSION_SECRET = 'segredo-de-teste-com-mais-de-32-caracteres';
   queryMock.mockReset();
+  avisarMock.mockReset();
 });
 
 describe('precificarItens', () => {
@@ -107,6 +109,19 @@ describe('POST /api/mesas/:token/pedidos', () => {
     expect(inserts[0][1]).toBe('Maria');
     expect(inserts[0][5]).toBe('73999991234');
     expect(inserts[0][6]).toBe('pendente');
+  });
+
+  it('avisa a equipe por push quando o cliente pede pelo QR', async () => {
+    simularBanco();
+    await postPedido({ itens: [{ produto_id: 'cappuccino', quantidade: 1 }] });
+
+    expect(avisarMock).toHaveBeenCalledTimes(1);
+    expect(avisarMock).toHaveBeenCalledWith({
+      titulo: 'Novo pedido de mesa',
+      corpo: 'Mesa 5 aguarda confirmação · R$ 11,00',
+      url: '/admin/mesas/5',
+      tag: 'mesa-5',
+    });
   });
 
   it('exige nome e telefone válidos', async () => {
@@ -169,6 +184,8 @@ describe('permissões do caixa', () => {
     expect(inserts[0][1]).toBeNull();
     expect(inserts[0][5]).toBeNull();
     expect(inserts[0][6]).toBe('novo');
+    // Quem lança é a própria equipe: não precisa de aviso.
+    expect(avisarMock).not.toHaveBeenCalled();
   });
 
   it('sem login ninguém lança pedido confirmado', async () => {

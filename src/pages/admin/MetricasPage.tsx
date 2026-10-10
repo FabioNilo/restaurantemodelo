@@ -42,6 +42,7 @@ export default function MetricasPage() {
         { label: 'Ticket médio', valor: formatBRL(m.ticket_medio.valor), variacao: m.ticket_medio.variacao },
         { label: 'Mesas', valor: formatBRL(m.por_canal.mesa) },
         { label: 'Delivery', valor: formatBRL(m.por_canal.delivery) },
+        { label: 'Retirada', valor: formatBRL(m.por_canal.retirada) },
         { label: 'Cancelados', valor: String(m.cancelados) },
       ]
     : [];
@@ -53,7 +54,7 @@ export default function MetricasPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-bold text-secondary">Métricas</h1>
-          <p className="text-sm text-muted-foreground">Mesas e delivery, sem pedidos cancelados. Comparado com {periodo.anterior}.</p>
+          <p className="text-sm text-muted-foreground">Mesas, delivery e retirada, sem pedidos cancelados. Comparado com {periodo.anterior}.</p>
         </div>
         <nav className="flex rounded-xl bg-muted p-1 text-sm" aria-label="Período">
           {PERIODOS.map((p) => (
@@ -74,7 +75,7 @@ export default function MetricasPage() {
 
       {m && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
             {blocos.map((b) => (
               <div key={b.label} className="rounded-2xl border bg-card p-4 shadow-soft">
                 <p className="text-sm text-muted-foreground">{b.label}</p>

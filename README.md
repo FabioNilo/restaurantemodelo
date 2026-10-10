@@ -129,6 +129,29 @@ O pedido feito pelo site é **gravado no banco** (`pedidos_delivery`, com o pre�
 - A taxa aparece no cartão do pedido em **Delivery**, no cupom impresso (`ENTREGA:`), na página de acompanhamento e, **separada dos itens**, no **Caixa** e no Excel (Resumo: "Vendas (itens)" e "Taxas de entrega"; Movimentações: colunas Itens / Taxa de entrega / Valor; Por dia: "Taxas de entrega (incluídas)").
 - O site aceita no máximo 5 pedidos por telefone a cada 10 minutos.
 
+### Retirada no balcão
+
+- **Interruptor** em **Configurações → Retirada no balcão** (coluna `configuracoes_site.retirada_ativa`, migração `008`). Começa **desligado**.
+- Vale **nos mesmos dias e horário do delivery** e funciona mesmo com "Entregas ativas" desligado (dá para parar o delivery e seguir com o balcão). O site informa `retirada_aberta_agora` em `GET /api/massas/site-status`.
+- Com a retirada aberta, o carrinho mostra **Entrega | Retirada no balcão**. Retirada pede só **nome e telefone**: sem endereço, bairro nem taxa, e o cliente **paga no balcão** (Pix, Débito ou Crédito).
+- A API confere de novo: recusa retirada com o interruptor desligado ou fora do horário (409) e ignora bairro, endereço e taxa enviados pelo navegador.
+- Na tela **Delivery** aparece com o selo **Retirada**. Como não há cozinha nem entregador, não tem "Preparar" nem "Saiu para entrega": só **Marcar retirado** (escolhe a forma de pagamento e entra no caixa) ou Cancelar.
+- O cupom impresso traz "RETIRADA NO BALCAO", sem endereço nem taxa. A página de acompanhamento do cliente mostra "Retirada no balcão" / "Retirado".
+- No **Caixa**, no Excel e nas **Métricas** a retirada é um **canal à parte** ("Retirada no balcão"), ao lado de Mesas e Delivery.
+
+### App do painel (PWA) e notificações de pedido novo
+
+O painel pode ser **instalado como app** (celular, tablet ou computador) e **avisa quando chega pedido novo**, mesmo com o app fechado. É um PWA **só do admin**: o site do cliente não tem manifest e não é instalável.
+
+- **Instalar**: botão "Instalar app" no menu lateral (computador) ou no sino do topo (celular). O app abre direto em `/admin/mesas`, em tela cheia. Arquivos em `public/admin/` (`manifest.webmanifest`, `sw.js`, ícones); escopo `/admin/`.
+- **iPhone/iPad**: o push só funciona com o app na Tela de Início (Compartilhar → Adicionar à Tela de Início, iOS 16.4 ou mais novo). O painel mostra essa instrução.
+- **Ativar notificações**: cada pessoa ativa **no próprio aparelho** (botão "Ativar notificações", com "Enviar teste" e "Desativar"). Admin e gestor (caixa) podem. Os aparelhos ficam na tabela `push_subscriptions`.
+- **Quando avisa**: pedido de **mesa** feito pelo cliente (aguardando confirmação), pedido de **delivery** e pedido de **retirada**. Pedido lançado pela própria equipe na comanda não avisa.
+- **Privacidade**: o aviso aparece na tela bloqueada, então traz só "Novo pedido de delivery · Pedido nº 12 · R$ 24,00". Sem nome nem telefone.
+- **Como funciona**: ao criar o pedido, a API (`server/push.ts`, biblioteca `web-push`) envia o aviso a todos os aparelhos inscritos. O envio espera no máximo 2,5 s e **nunca derruba o pedido**: se o push falhar, o pedido é registrado do mesmo jeito. Inscrições de aparelhos que cancelaram (404/410) são apagadas sozinhas.
+- **Sem chaves não quebra nada**: sem as variáveis `VAPID_*` o recurso fica desligado e o painel avisa "notificações ainda não configuradas no servidor".
+- Tocar na notificação abre (ou traz para a frente) o painel na tela do pedido.
+
 ### Caixa e Excel
 
 - O caixa sai da tabela `pagamentos`: **só entradas**, com cada pagamento de conta fechada e cada delivery entregue.
@@ -148,6 +171,7 @@ Modelo em `.env.example`. Os valores reais (gerados na criação do projeto Neon
 | `.env.local` | desenvolvimento local, aponta para a branch `dev` |
 | `.env.vercel-production.local` | valores para colar na Vercel (Production) |
 | `.admin-production.local` | login inicial do painel em produção. **Não vai para a Vercel.** |
+| `.push-production.local` | chaves VAPID de produção para cadastrar na Vercel (`VAPID_*`). Não commitar. |
 
 | Variável | Onde | Observação |
 |---|---|---|
@@ -158,6 +182,8 @@ Modelo em `.env.example`. Os valores reais (gerados na criação do projeto Neon
 | `NEON_STORAGE_REGION` | Vercel | `us-east-1` |
 | `NEON_STORAGE_BUCKET` | Vercel | `produtos` |
 | `NEON_STORAGE_ACCESS_KEY_ID` / `NEON_STORAGE_SECRET_ACCESS_KEY` | Vercel | credencial `storage:write` (vale para a `production` e a `dev`) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Vercel (Production) | chaves das notificações push do painel. Gerar com `npx web-push generate-vapid-keys`. **Trocar as chaves desativa os aparelhos já inscritos** (cada um precisa ativar de novo). Sem elas o push fica desligado |
+| `VAPID_SUBJECT` | Vercel (Production) | identificação do site para o serviço de push, ex.: `https://nossobistro.vercel.app` |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | só local | usados pelos scripts `db:seed` e `admin:password` |
 
 O prefixo é `NEON_STORAGE_*`, e não `AWS_*`, porque a Vercel reserva os nomes `AWS_*`.

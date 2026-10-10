@@ -4,6 +4,7 @@ import type { ProdutoTamanho } from '../src/types/product.js';
 import { query } from './db.js';
 import { ApiError } from './http.js';
 import { erroFechamento, fromCents, pagamentoSchema, toCents } from './pagamentos.js';
+import { avisarPedidoNovo } from './push.js';
 
 // Pedidos pela mesa (QR code). O cliente só manda produto, opção e quantidade;
 // nome e preço de cada item são sempre lidos do cardápio aqui no servidor.
@@ -263,6 +264,16 @@ export async function criarPedidoMesa(token: string, input: NovoPedidoMesa, orig
 
   if (!pedido) {
     throw new ApiError(503, 'Não foi possível registrar o pedido agora. Tente de novo.');
+  }
+
+  // Pedido do cliente (QR) espera confirmação: avisa a equipe no celular. O lançado pela própria equipe não avisa.
+  if (origem === 'cliente') {
+    await avisarPedidoNovo({
+      titulo: 'Novo pedido de mesa',
+      corpo: `${mesa.nome || `Mesa ${mesa.numero}`} aguarda confirmação · R$ ${money(pedido.valor_total).toFixed(2).replace('.', ',')}`,
+      url: `/admin/mesas/${mesa.id}`,
+      tag: `mesa-${mesa.id}`,
+    });
   }
 
   return { numero: Number(pedido.numero), status: pedido.status, valor_total: money(pedido.valor_total) };

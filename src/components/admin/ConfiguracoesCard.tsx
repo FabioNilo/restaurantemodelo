@@ -6,7 +6,8 @@ import {
   MessageSquareText,
   Phone,
   Power,
-  Save
+  Save,
+  Store
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import {
   DEFAULT_SITE_SETTINGS,
   SITE_OPEN_MESSAGE,
   isDeliveryClosed,
+  isRetiradaClosed,
   normalizeTimeInputValue,
   toDatabaseTimeValue,
   type ConfiguracoesSite
@@ -47,6 +49,7 @@ export function ConfiguracoesCard() {
   }, [settings]);
 
   const deliveryClosed = isDeliveryClosed(form);
+  const retiradaFechada = isRetiradaClosed(form);
 
   const toggleDay = (dayValue: number) => {
     setForm((current) => {
@@ -92,6 +95,7 @@ export function ConfiguracoesCard() {
 
     const result = await saveSettings({
       entregas_ativas: form.entregas_ativas,
+      retirada_ativa: form.retirada_ativa,
       whatsapp_numero: form.whatsapp_numero,
       hora_abertura: toDatabaseTimeValue(form.hora_abertura),
       hora_fechamento: toDatabaseTimeValue(form.hora_fechamento),
@@ -169,6 +173,38 @@ export function ConfiguracoesCard() {
                         setForm((current) => ({
                           ...current,
                           entregas_ativas: checked
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="retirada-ativa" className="flex items-center gap-2 text-sm font-medium">
+                        <Store className="h-4 w-4 text-gold-ink" />
+                        Retirada no balcão
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Liga a opção "Retirada no balcão" no carrinho do site: o cliente escolhe retirar, sem endereço nem taxa, e paga no balcão.
+                        Vale nos mesmos dias e horário da entrega e funciona mesmo com as entregas pausadas.
+                      </p>
+                      <p className={cn('text-xs font-medium', form.retirada_ativa && !retiradaFechada ? 'text-emerald-700' : 'text-muted-foreground')}>
+                        {!form.retirada_ativa
+                          ? 'Desligada: o site não oferece retirada.'
+                          : retiradaFechada
+                            ? 'Ligada, mas fora do horário agora: o site só oferece dentro dos dias e horários abaixo.'
+                            : 'Ligada: o site está aceitando pedidos de retirada agora.'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="retirada-ativa"
+                      checked={form.retirada_ativa}
+                      onCheckedChange={(checked) =>
+                        setForm((current) => ({
+                          ...current,
+                          retirada_ativa: checked
                         }))
                       }
                     />
