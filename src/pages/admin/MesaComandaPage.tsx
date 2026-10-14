@@ -72,7 +72,10 @@ export default function MesaComandaPage() {
     mutationFn: (pagamentos: Parameters<typeof fecharContaMesaPagamentos>[1]) => fecharContaMesaPagamentos(detalhe.data!.conta!.id, pagamentos),
     onSuccess: (r) => {
       setFechandoMobile(false);
-      toast({ title: 'Conta fechada. Mesa liberada!', description: `Total ${formatBRL(r.valor_total)}` });
+      toast({
+        title: 'Conta fechada. Mesa liberada!',
+        description: r.troco > 0 ? `Total ${formatBRL(r.valor_total)} · devolva ${formatBRL(r.troco)} de troco` : `Total ${formatBRL(r.valor_total)}`,
+      });
       atualizar();
     },
     onError: onError('Não foi possível fechar a conta'),

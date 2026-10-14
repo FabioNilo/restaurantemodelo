@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Armchair, Bike, CreditCard, FileSpreadsheet, Landmark, Loader2, QrCode, Store, Wallet } from 'lucide-react';
+import { Armchair, Banknote, Bike, CreditCard, FileSpreadsheet, Landmark, Loader2, QrCode, ShoppingBag, Store, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,13 +9,15 @@ import { toast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { gerarExcelFluxoCaixa } from '@/lib/exportar-excel';
 import { dataBR, resumirCaixa } from '@/lib/fluxo-caixa';
-import { FORMA_PAGAMENTO_LABELS, FORMAS_PAGAMENTO, formatBRL, fromCents, toCents, type FormaPagamento } from '@/lib/pagamentos';
+import { FORMA_PAGAMENTO_CAIXA_LABELS, FORMAS_PAGAMENTO_CAIXA, formatBRL, fromCents, toCents, type FormaPagamentoCaixa } from '@/lib/pagamentos';
 import { ATALHOS_PERIODO, periodoDoAtalho, type AtalhoPeriodo } from '@/lib/periodos';
 import { cn } from '@/lib/utils';
 
-const ICONES: Record<FormaPagamento, typeof QrCode> = { pix: QrCode, cartao_debito: Landmark, cartao_credito: CreditCard };
+const ICONES: Record<FormaPagamentoCaixa, typeof QrCode> = { pix: QrCode, cartao_debito: Landmark, cartao_credito: CreditCard, dinheiro: Banknote };
 
-// Caixa por período (só entradas): contas de mesa fechadas e deliveries entregues,
+const NOMES_CANAL = { mesa: 'Mesas', delivery: 'Delivery', retirada: 'Retirada no balcão', balcao: 'Balcão' } as const;
+
+// Caixa por período (só entradas): contas de mesa fechadas, deliveries entregues, retiradas e vendas no balcão,
 // por forma de pagamento e por canal, com exportação do fluxo de caixa em Excel.
 export default function CaixaPage() {
   const [atalho, setAtalho] = useState<AtalhoPeriodo | null>('hoje');
@@ -29,6 +31,7 @@ export default function CaixaPage() {
   });
 
   const resumo = resumirCaixa(movimentos.data ?? []);
+  const canais = (['mesa', 'delivery', 'retirada', 'balcao'] as const).filter((canal) => canal === 'mesa' || canal === 'delivery' || resumo.porCanal[canal] > 0);
   const periodoInvalido = periodo.de > periodo.ate;
 
   const escolherAtalho = (id: AtalhoPeriodo) => {
@@ -55,7 +58,7 @@ export default function CaixaPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-bold text-secondary">Caixa</h1>
-          <p className="text-sm text-muted-foreground">Recebimentos de {titulo}: contas de mesa fechadas e deliveries entregues.</p>
+          <p className="text-sm text-muted-foreground">Recebimentos de {titulo}: mesas, delivery, retirada e balcão. Em dinheiro conta só o valor da venda (o troco devolvido não é receita).</p>
         </div>
         <Button onClick={exportar} disabled={!movimentos.data || exportando || periodoInvalido} className="h-11 w-full sm:h-10 sm:w-auto">
           {exportando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
@@ -116,7 +119,7 @@ export default function CaixaPage() {
 
       {movimentos.error && <p className="text-destructive">{getApiErrorMessage(movimentos.error)}</p>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="col-span-2 rounded-2xl bg-secondary p-5 text-secondary-foreground lg:col-span-1">
           <p className="flex items-center gap-2 text-sm text-secondary-foreground/75">
             <Wallet className="h-4 w-4" /> Total recebido
@@ -129,12 +132,12 @@ export default function CaixaPage() {
             </p>
           )}
         </div>
-        {FORMAS_PAGAMENTO.map((forma) => {
+        {FORMAS_PAGAMENTO_CAIXA.map((forma) => {
           const Icone = ICONES[forma];
           return (
             <div key={forma} className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Icone className="h-4 w-4 text-gold-ink" /> {FORMA_PAGAMENTO_LABELS[forma]}
+                <Icone className="h-4 w-4 text-gold-ink" /> {FORMA_PAGAMENTO_CAIXA_LABELS[forma]}
               </p>
               <p className="mt-1 text-xl font-semibold sm:text-2xl">{formatBRL(resumo.porForma[forma])}</p>
             </div>
@@ -142,18 +145,16 @@ export default function CaixaPage() {
         })}
       </div>
 
-      {/* A retirada no balcão só aparece quando houve recebimento dela no período. */}
-      <div className={cn('grid gap-6', resumo.porCanal.retirada > 0 ? 'xl:grid-cols-3' : 'xl:grid-cols-2')}>
-        {(['mesa', 'delivery', 'retirada'] as const)
-          .filter((canal) => canal !== 'retirada' || resumo.porCanal.retirada > 0)
-          .map((canal) => {
+      {/* Retirada e balcão só aparecem quando houve recebimento deles no período. */}
+      <div className={cn('grid gap-6', canais.length >= 4 ? 'xl:grid-cols-2 2xl:grid-cols-4' : canais.length === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-2')}>
+        {canais.map((canal) => {
           const lista = (movimentos.data ?? []).filter((m) => m.canal === canal);
-          const Icone = canal === 'mesa' ? Armchair : canal === 'retirada' ? Store : Bike;
+          const Icone = canal === 'mesa' ? Armchair : canal === 'retirada' ? Store : canal === 'balcao' ? ShoppingBag : Bike;
           return (
             <section key={canal} className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
               <h2 className="mb-3 flex items-center justify-between font-display text-2xl font-bold text-secondary">
                 <span className="flex items-center gap-2">
-                  <Icone className="h-5 w-5 text-gold-ink" /> {canal === 'mesa' ? 'Mesas' : canal === 'retirada' ? 'Retirada no balcão' : 'Delivery'}
+                  <Icone className="h-5 w-5 text-gold-ink" /> {NOMES_CANAL[canal]}
                 </span>
                 <span className="font-sans text-base">{formatBRL(resumo.porCanal[canal])}</span>
               </h2>
@@ -175,17 +176,22 @@ export default function CaixaPage() {
                       <span className="order-3 text-xs text-muted-foreground sm:order-none sm:w-28 sm:text-sm">
                         {periodo.de === periodo.ate ? '' : `${dataBR(m.data).slice(0, 5)} `}
                         {m.data.slice(11, 16)}
-                        <span className="sm:hidden"> · {FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
+                        <span className="sm:hidden"> · {FORMA_PAGAMENTO_CAIXA_LABELS[m.metodo]}</span>
                       </span>
                       <span className="order-1 min-w-0 truncate font-medium sm:order-none sm:flex-1">
                         {m.referencia}
                         {m.cliente ? <span className="font-normal text-muted-foreground"> · {m.cliente}</span> : null}
                       </span>
-                      <span className="hidden text-muted-foreground sm:inline">{FORMA_PAGAMENTO_LABELS[m.metodo]}</span>
+                      <span className="hidden text-muted-foreground sm:inline">{FORMA_PAGAMENTO_CAIXA_LABELS[m.metodo]}</span>
                       <span className="order-2 row-span-2 flex flex-col items-end sm:order-none sm:row-span-1">
                         <strong className="tabular-nums">{formatBRL(m.valor)}</strong>
                         {m.taxa_entrega > 0 && (
                           <span className="text-xs text-muted-foreground">entrega {formatBRL(m.taxa_entrega)}</span>
+                        )}
+                        {m.metodo === 'dinheiro' && m.valor_recebido != null && (m.troco ?? 0) > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            recebido {formatBRL(m.valor_recebido)} · troco {formatBRL(m.troco ?? 0)}
+                          </span>
                         )}
                       </span>
                     </li>

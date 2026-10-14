@@ -15,6 +15,7 @@ const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const MesasPage = lazy(() => import("./pages/admin/MesasPage"));
 const MesaComandaPage = lazy(() => import("./pages/admin/MesaComandaPage"));
 const EdicaoLotePage = lazy(() => import("./pages/admin/EdicaoLotePage"));
+const BalcaoPage = lazy(() => import("./pages/admin/BalcaoPage"));
 const DeliveryPage = lazy(() => import("./pages/admin/DeliveryPage"));
 const CaixaPage = lazy(() => import("./pages/admin/CaixaPage"));
 const CardapioPage = lazy(() => import("./pages/admin/CardapioPage"));
@@ -46,6 +47,7 @@ const App = () => (
                   <Route index element={<Navigate to="mesas" replace />} />
                   <Route path="mesas" element={<MesasPage />} />
                   <Route path="mesas/:id" element={<MesaComandaPage />} />
+                  <Route path="balcao" element={<BalcaoPage />} />
                   <Route path="delivery" element={<DeliveryPage />} />
                   <Route path="caixa" element={<CaixaPage />} />
                   <Route path="cardapio" element={<CardapioPage />} />

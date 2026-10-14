@@ -43,22 +43,22 @@ export async function gerarExcelFluxoCaixa(movimentos: MovimentoCaixa[], periodo
 
   // Movimentações
   const mov = wb.addWorksheet('Movimentações');
-  mov.columns = [{ width: 12 }, { width: 8 }, { width: 10 }, { width: 20 }, { width: 24 }, { width: 20 }, { width: 14 }, { width: 16 }, { width: 14 }];
+  mov.columns = [{ width: 12 }, { width: 8 }, { width: 10 }, { width: 20 }, { width: 24 }, { width: 20 }, { width: 14 }, { width: 16 }, { width: 14 }, { width: 24 }, { width: 18 }];
   cabecalho(mov.addRow(dados.movimentacoes.cabecalho));
   dados.movimentacoes.linhas.forEach((linha) => mov.addRow(linha));
-  [7, 8, 9].forEach((col) => (mov.getColumn(col).numFmt = MOEDA));
-  mov.autoFilter = { from: 'A1', to: `I${Math.max(dados.movimentacoes.linhas.length + 1, 1)}` };
+  [7, 8, 9, 10, 11].forEach((col) => (mov.getColumn(col).numFmt = MOEDA));
+  mov.autoFilter = { from: 'A1', to: `K${Math.max(dados.movimentacoes.linhas.length + 1, 1)}` };
   mov.views = [{ state: 'frozen', ySplit: 1 }];
-  const totalMov = mov.addRow(['', '', '', '', '', 'Total', dados.movimentacoes.itens, dados.movimentacoes.taxaEntrega, dados.movimentacoes.total]);
+  const totalMov = mov.addRow(['', '', '', '', '', 'Total', dados.movimentacoes.itens, dados.movimentacoes.taxaEntrega, dados.movimentacoes.total, '', dados.movimentacoes.troco]);
   totalMov.font = { bold: true };
   totalMov.getCell(9).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DOURADO } };
 
   // Por dia
   const dia = wb.addWorksheet('Por dia');
-  dia.columns = [{ width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 26 }];
+  dia.columns = [{ width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 26 }];
   cabecalho(dia.addRow(dados.porDia.cabecalho));
   dados.porDia.linhas.forEach((linha) => dia.addRow(linha));
-  [2, 3, 4, 5, 6].forEach((col) => (dia.getColumn(col).numFmt = MOEDA));
+  [2, 3, 4, 5, 6, 7].forEach((col) => (dia.getColumn(col).numFmt = MOEDA));
   dia.views = [{ state: 'frozen', ySplit: 1 }];
 
   await entregarArquivo(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME }), nomeArquivoFluxoCaixa(periodo));

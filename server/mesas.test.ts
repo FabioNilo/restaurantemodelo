@@ -198,14 +198,97 @@ describe('permissões do caixa', () => {
     expect(response.status).toBe(401);
   });
 
-  it('só aceita Pix, Débito ou Crédito para fechar a conta', async () => {
+  it('só aceita Pix, Débito, Crédito ou Dinheiro para fechar a conta', async () => {
     simularBanco();
     const response = await postAdmin('u-gestor', 'gestor', {
       action: 'contas.fechar',
       id: crypto.randomUUID(),
-      pagamentos: [{ metodo: 'dinheiro', valor: 10 }],
+      pagamentos: [{ metodo: 'cheque', valor: 10 }],
     });
     expect(response.status).toBe(400);
-    expect((await response.json()).error).toBe('Escolha Pix, Débito ou Crédito.');
+    expect((await response.json()).error).toBe('Escolha Pix, Débito, Crédito ou Dinheiro.');
+  });
+});
+
+describe('fechar conta com dinheiro (valor recebido e troco)', () => {
+  const CONTA = '3f1c2b1a-1111-4c4c-9d9d-0000000000aa';
+
+  // Conta aberta de R$ 27,80 (2 picolés de pistache), tudo entregue.
+  function simularConta() {
+    const chamadas: Array<{ text: string; params: unknown[] }> = [];
+
+    queryMock.mockImplementation(async (text: string, params: unknown[] = []) => {
+      chamadas.push({ text, params });
+      if (text.includes('from usuarios_admin where id')) {
+        return [{ id: 'u-gestor', username: 'caixa', name: null, role: 'gestor', password_hash: 'x', token_version: 0 }].filter((u) => u.id === params[0]);
+      }
+      if (text.includes("from contas_mesa where id = $1 and status = 'aberta'")) return [{ id: CONTA }];
+      if (text.includes('select status, valor_total from pedidos_mesa')) return [{ status: 'entregue', valor_total: '27.80' }];
+      if (text.includes('update contas_mesa c')) return [{ id: CONTA, valor_total: '27.80' }];
+      return [];
+    });
+
+    return chamadas;
+  }
+
+  const fechar = async (pagamentos: unknown[]) => {
+    const { token } = await signSession({ id: 'u-gestor', role: 'gestor', token_version: 0 });
+    return app.request('/api/massas/admin/api', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'contas.fechar', id: CONTA, pagamentos }),
+    });
+  };
+
+  const gravado = (chamadas: Array<{ text: string; params: unknown[] }>) =>
+    JSON.parse(String(chamadas.find((c) => c.text.includes('update contas_mesa c'))!.params[4]));
+
+  it('dinheiro com troco: grava o valor da conta, o recebido e o troco', async () => {
+    const chamadas = simularConta();
+    const response = await fechar([{ metodo: 'dinheiro', valor: 27.8, valor_recebido: 50 }]);
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toMatchObject({ valor_total: 27.8, troco: 22.2 });
+    expect(gravado(chamadas)).toEqual([{ metodo: 'dinheiro', valor: 27.8, valor_recebido: 50, troco: 22.2 }]);
+  });
+
+  it('dinheiro sem informar o recebido assume o valor exato, sem troco', async () => {
+    const chamadas = simularConta();
+    const response = await fechar([{ metodo: 'dinheiro', valor: 27.8 }]);
+
+    expect((await response.json()).data.troco).toBe(0);
+    expect(gravado(chamadas)).toEqual([{ metodo: 'dinheiro', valor: 27.8, valor_recebido: 27.8, troco: 0 }]);
+  });
+
+  it('pagamento dividido: Pix + dinheiro com troco só na parte em dinheiro', async () => {
+    const chamadas = simularConta();
+    const response = await fechar([
+      { metodo: 'pix', valor: 20, valor_recebido: 999 },
+      { metodo: 'dinheiro', valor: 7.8, valor_recebido: 10 },
+    ]);
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.troco).toBe(2.2);
+    // Pix nunca guarda recebido nem troco, mesmo que o navegador mande.
+    expect(gravado(chamadas)).toEqual([
+      { metodo: 'pix', valor: 20, valor_recebido: null, troco: null },
+      { metodo: 'dinheiro', valor: 7.8, valor_recebido: 10, troco: 2.2 },
+    ]);
+  });
+
+  it('recusa recebido menor que o valor em dinheiro e soma diferente do total', async () => {
+    simularConta();
+    const menor = await fechar([{ metodo: 'dinheiro', valor: 27.8, valor_recebido: 20 }]);
+    expect(menor.status).toBe(400);
+    expect((await menor.json()).error).toBe('O valor recebido em dinheiro é menor que o valor a pagar em dinheiro.');
+
+    const falta = await fechar([{ metodo: 'dinheiro', valor: 20, valor_recebido: 20 }]);
+    expect(falta.status).toBe(400);
+    expect((await falta.json()).error).toMatch(/Ainda faltam R\$ 7,80/);
+
+    // O troco não "paga" a conta: valor da linha passando do total continua sendo erro.
+    const passa = await fechar([{ metodo: 'dinheiro', valor: 30, valor_recebido: 50 }]);
+    expect(passa.status).toBe(400);
+    expect((await passa.json()).error).toMatch(/passam do total em R\$ 2,20/);
   });
 });

@@ -1,5 +1,5 @@
 import type { MovimentoCaixa } from '@/features/integrations/painel-contracts';
-import { FORMA_PAGAMENTO_LABELS, FORMAS_PAGAMENTO, fromCents, toCents, type FormaPagamento } from '@/lib/pagamentos';
+import { FORMA_PAGAMENTO_CAIXA_LABELS, FORMAS_PAGAMENTO_CAIXA, fromCents, toCents, type FormaPagamentoCaixa } from '@/lib/pagamentos';
 
 // Fluxo de caixa (só entradas): resumo da tela do Caixa e linhas do Excel.
 
@@ -10,15 +10,18 @@ export interface ResumoCaixa {
   /** taxas de entrega recebidas (já incluídas no total) */
   taxaEntrega: number;
   quantidade: number;
-  porForma: Record<FormaPagamento, number>;
-  porCanal: { mesa: number; delivery: number; retirada: number };
-  porDia: Array<{ dia: string } & Record<FormaPagamento, number> & { total: number; taxaEntrega: number }>;
+  porForma: Record<FormaPagamentoCaixa, number>;
+  porCanal: { mesa: number; delivery: number; retirada: number; balcao: number };
+  /** troco devolvido em dinheiro (não é receita: o caixa conta só o valor da venda) */
+  troco: number;
+  porDia: Array<{ dia: string } & Record<FormaPagamentoCaixa, number> & { total: number; taxaEntrega: number }>;
 }
 
 export function resumirCaixa(movimentos: MovimentoCaixa[]): ResumoCaixa {
-  const porForma = Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, 0])) as Record<FormaPagamento, number>;
-  const porCanal = { mesa: 0, delivery: 0, retirada: 0 };
-  const dias = new Map<string, Record<FormaPagamento, number>>();
+  const porForma = Object.fromEntries(FORMAS_PAGAMENTO_CAIXA.map((f) => [f, 0])) as Record<FormaPagamentoCaixa, number>;
+  const porCanal = { mesa: 0, delivery: 0, retirada: 0, balcao: 0 };
+  let troco = 0;
+  const dias = new Map<string, Record<FormaPagamentoCaixa, number>>();
   const taxasDia = new Map<string, number>();
   let total = 0;
   let taxaEntrega = 0;
@@ -28,8 +31,9 @@ export function resumirCaixa(movimentos: MovimentoCaixa[]): ResumoCaixa {
     total += cents;
     porForma[mov.metodo] += cents;
     porCanal[mov.canal] += cents;
+    troco += toCents(mov.troco ?? 0);
     const dia = mov.data.slice(0, 10);
-    const linha = dias.get(dia) ?? (Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, 0])) as Record<FormaPagamento, number>);
+    const linha = dias.get(dia) ?? (Object.fromEntries(FORMAS_PAGAMENTO_CAIXA.map((f) => [f, 0])) as Record<FormaPagamentoCaixa, number>);
     linha[mov.metodo] += cents;
     dias.set(dia, linha);
     const taxa = toCents(mov.taxa_entrega ?? 0);
@@ -42,14 +46,20 @@ export function resumirCaixa(movimentos: MovimentoCaixa[]): ResumoCaixa {
     itens: fromCents(total - taxaEntrega),
     taxaEntrega: fromCents(taxaEntrega),
     quantidade: movimentos.length,
-    porForma: Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, fromCents(porForma[f])])) as Record<FormaPagamento, number>,
-    porCanal: { mesa: fromCents(porCanal.mesa), delivery: fromCents(porCanal.delivery), retirada: fromCents(porCanal.retirada) },
+    porForma: Object.fromEntries(FORMAS_PAGAMENTO_CAIXA.map((f) => [f, fromCents(porForma[f])])) as Record<FormaPagamentoCaixa, number>,
+    porCanal: {
+      mesa: fromCents(porCanal.mesa),
+      delivery: fromCents(porCanal.delivery),
+      retirada: fromCents(porCanal.retirada),
+      balcao: fromCents(porCanal.balcao),
+    },
+    troco: fromCents(troco),
     porDia: [...dias.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([dia, valores]) => ({
         dia,
-        ...(Object.fromEntries(FORMAS_PAGAMENTO.map((f) => [f, fromCents(valores[f])])) as Record<FormaPagamento, number>),
-        total: fromCents(FORMAS_PAGAMENTO.reduce((s, f) => s + valores[f], 0)),
+        ...(Object.fromEntries(FORMAS_PAGAMENTO_CAIXA.map((f) => [f, fromCents(valores[f])])) as Record<FormaPagamentoCaixa, number>),
+        total: fromCents(FORMAS_PAGAMENTO_CAIXA.reduce((s, f) => s + valores[f], 0)),
         taxaEntrega: fromCents(taxasDia.get(dia) ?? 0),
       })),
   };
@@ -71,33 +81,37 @@ export function planilhasFluxoCaixa(movimentos: MovimentoCaixa[], periodo: { de:
       ['Taxas de entrega', resumo.taxaEntrega],
       [],
       ['Por forma de pagamento', 'Valor'],
-      ...FORMAS_PAGAMENTO.map((f) => [FORMA_PAGAMENTO_LABELS[f], resumo.porForma[f]]),
+      ...FORMAS_PAGAMENTO_CAIXA.map((f) => [FORMA_PAGAMENTO_CAIXA_LABELS[f], resumo.porForma[f]]),
       [],
       ['Por canal', 'Valor'],
       ['Mesas', resumo.porCanal.mesa],
       ['Delivery', resumo.porCanal.delivery],
       ['Retirada no balcão', resumo.porCanal.retirada],
+      ['Venda no balcão', resumo.porCanal.balcao],
     ] as Array<Array<string | number>>,
     movimentacoes: {
-      cabecalho: ['Data', 'Hora', 'Canal', 'Referência', 'Cliente', 'Forma de pagamento', 'Itens', 'Taxa de entrega', 'Valor'],
+      cabecalho: ['Data', 'Hora', 'Canal', 'Referência', 'Cliente', 'Forma de pagamento', 'Itens', 'Taxa de entrega', 'Valor', 'Valor recebido (dinheiro)', 'Troco (dinheiro)'],
       linhas: movimentos.map((m) => [
         dataBR(m.data),
         m.data.slice(11, 16),
-        m.canal === 'mesa' ? 'Mesa' : m.canal === 'retirada' ? 'Retirada' : 'Delivery',
+        m.canal === 'mesa' ? 'Mesa' : m.canal === 'retirada' ? 'Retirada' : m.canal === 'balcao' ? 'Balcão' : 'Delivery',
         m.referencia,
         m.cliente ?? '',
-        FORMA_PAGAMENTO_LABELS[m.metodo],
+        FORMA_PAGAMENTO_CAIXA_LABELS[m.metodo],
         fromCents(toCents(m.valor) - toCents(m.taxa_entrega ?? 0)),
         m.taxa_entrega ?? 0,
         m.valor,
+        m.valor_recebido ?? '',
+        m.troco ?? '',
       ]),
       itens: resumo.itens,
       taxaEntrega: resumo.taxaEntrega,
       total: resumo.total,
+      troco: resumo.troco,
     },
     porDia: {
-      cabecalho: ['Data', ...FORMAS_PAGAMENTO.map((f) => FORMA_PAGAMENTO_LABELS[f]), 'Total', 'Taxas de entrega (incluídas)'],
-      linhas: resumo.porDia.map((d) => [dataBR(d.dia), ...FORMAS_PAGAMENTO.map((f) => d[f]), d.total, d.taxaEntrega]),
+      cabecalho: ['Data', ...FORMAS_PAGAMENTO_CAIXA.map((f) => FORMA_PAGAMENTO_CAIXA_LABELS[f]), 'Total', 'Taxas de entrega (incluídas)'],
+      linhas: resumo.porDia.map((d) => [dataBR(d.dia), ...FORMAS_PAGAMENTO_CAIXA.map((f) => d[f]), d.total, d.taxaEntrega]),
     },
   };
 }

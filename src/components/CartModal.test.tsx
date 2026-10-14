@@ -243,6 +243,24 @@ describe('CartModal', () => {
     expect(screen.queryByRole('button', { name: /Retirada no balcão/i })).not.toBeInTheDocument();
   });
 
+  it('confirma em texto a forma de pagamento escolhida e muda quando troca', async () => {
+    const user = await addItemAndOpenCheckout();
+    const aviso = () => screen.getByTestId('pagamento-escolhido').textContent;
+
+    expect(aviso()).toMatch(/Pagamento escolhido: Pix\. Você paga ao receber o pedido\./);
+    expect(screen.getByRole('button', { name: /^Pix$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /^Crédito$/i }));
+    expect(aviso()).toMatch(/Pagamento escolhido: Cartão de crédito\./);
+    expect(screen.getByRole('button', { name: /^Crédito$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Pix$/i })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('o carrinho do site não oferece dinheiro (só o caixa aceita)', async () => {
+    await addItemAndOpenCheckout();
+    expect(screen.queryByRole('button', { name: /Dinheiro/i })).not.toBeInTheDocument();
+  });
+
   it('retirada no balcão: só nome e telefone, sem bairro nem taxa, e segue para o WhatsApp', async () => {
     const user = await addItemAndOpenCheckout({ retiradaDisponivel: true });
 
@@ -259,6 +277,7 @@ describe('CartModal', () => {
     await user.type(screen.getByLabelText(/Nome completo/i), 'Cliente Teste');
     await user.type(screen.getByLabelText(/Telefone/i), '73999999999');
     await user.click(screen.getByRole('button', { name: /^Débito$/i }));
+    expect(screen.getByTestId('pagamento-escolhido').textContent).toMatch(/Cartão de débito\. Você paga no balcão, na retirada\./);
     await user.click(screen.getByRole('button', { name: /Enviar pedido no WhatsApp/i }));
 
     await waitFor(() => expect(createPedidoN8n).toHaveBeenCalled());

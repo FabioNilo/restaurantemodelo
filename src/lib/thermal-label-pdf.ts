@@ -96,6 +96,7 @@ function getPaymentLabel(value?: string | null) {
   if (normalized === 'cartao_credito' || normalized === 'cartao') return 'CARTAO DE CREDITO';
   if (normalized === 'cartao_debito') return 'CARTAO DE DEBITO';
   if (normalized === 'pix') return 'PIX';
+  if (normalized === 'dinheiro') return 'DINHEIRO';
   return compactText(value, '-').toUpperCase();
 }
 
@@ -365,6 +366,65 @@ export function buildMesaReceiptLines(pedido: ThermalMesaPedido, mesaNome: strin
 
 export function downloadMesaPedidoThermalPdf(pedido: ThermalMesaPedido, mesaNome: string) {
   downloadReceipt(buildMesaReceiptLines(pedido, mesaNome), `mesa-pedido-${pedido.numero}.pdf`);
+}
+
+// --- Venda no balcão: itens, forma(s) de pagamento e, em dinheiro, valor recebido e troco ---
+
+interface ThermalVendaBalcao {
+  numero: number;
+  nome: string | null;
+  observacoes: string | null;
+  valor_total: number;
+  created_at: string;
+  itens: ThermalLabelItem[];
+  pagamentos: Array<{ metodo: string; valor: number; valor_recebido: number | null; troco: number | null }>;
+}
+
+export function buildVendaBalcaoReceiptLines(venda: ThermalVendaBalcao): ReceiptLine[] {
+  const criada = new Date(venda.created_at);
+  const data = criada.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const hora = criada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const itemLines = venda.itens.flatMap((item, index) => {
+    const total = getItemTotal(item);
+    return [
+      index > 0 ? { text: '' } : null,
+      { text: `${item.quantidade ?? 1}x ${compactText(item.nome, 'ITEM').toUpperCase()}`, font: 'itemName' },
+      item.tamanho_nome ? { text: `OPCAO: ${compactText(item.tamanho_nome).toUpperCase()}` } : null,
+      total > 0 ? { text: `VALOR: ${formatCurrency(total)}` } : null,
+    ].filter(Boolean) as ReceiptLine[];
+  });
+
+  const pagamentoLines = venda.pagamentos.flatMap((pagamento) =>
+    [
+      { text: `${getPaymentLabel(pagamento.metodo)}: ${formatCurrency(pagamento.valor)}` },
+      pagamento.metodo === 'dinheiro' && pagamento.valor_recebido != null ? { text: `  RECEBIDO: ${formatCurrency(pagamento.valor_recebido)}` } : null,
+      pagamento.metodo === 'dinheiro' && (pagamento.troco ?? 0) > 0 ? { text: `  TROCO: ${formatCurrency(pagamento.troco ?? 0)}`, font: 'bold' } : null,
+    ].filter(Boolean) as ReceiptLine[]
+  );
+
+  return [
+    { text: BRAND.name.toUpperCase(), font: 'title', align: 'center' },
+    { text: 'VENDA NO BALCAO', font: 'bold', align: 'center' },
+    { text: `NUMERO ${venda.numero}`, align: 'center' },
+    { text: DIVIDER, align: 'center' },
+    { text: `DATA: ${data} ${hora}` },
+    venda.nome ? { text: `CLIENTE: ${compactText(venda.nome).toUpperCase()}` } : null,
+    { text: DIVIDER, align: 'center' },
+    ...itemLines,
+    { text: DIVIDER, align: 'center' },
+    ...pagamentoLines,
+    { text: `TOTAL: ${formatCurrency(Number(venda.valor_total) || 0)}`, font: 'bold' },
+    venda.observacoes ? { text: '' } : null,
+    venda.observacoes ? { text: 'OBS:', font: 'bold' } : null,
+    venda.observacoes ? { text: compactText(venda.observacoes).toUpperCase() } : null,
+    { text: '' },
+    { text: 'OBRIGADO!', align: 'center' },
+  ].filter(Boolean) as ReceiptLine[];
+}
+
+export function downloadVendaBalcaoThermalPdf(venda: ThermalVendaBalcao) {
+  downloadReceipt(buildVendaBalcaoReceiptLines(venda), `balcao-venda-${venda.numero}.pdf`);
 }
 
 // --- Conta da mesa para pagamento: resumo geral ou descrita por pessoa ---

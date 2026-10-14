@@ -34,6 +34,7 @@ import {
   excluirBairroSchema,
   listarBairros,
 } from '../bairros.js';
+import { cancelarVendaBalcao, cancelarVendaBalcaoSchema, listarVendasBalcao, registrarVendaBalcao, vendaBalcaoSchema } from '../balcao.js';
 import { ApiError, noStore, ok } from '../http.js';
 import { chavePublicaPush, enviarTeste, inscricaoSchema, removerInscricao, removerInscricaoSchema, salvarInscricao } from '../push.js';
 import {
@@ -190,6 +191,19 @@ const actions: Record<string, ActionDefinition> = {
     run: async (payload) => cancelarConta(contaIdSchema.parse(payload).id),
   },
   // --- Delivery ---
+  // --- Venda no balcão (lançada direto no painel, paga na hora) ---
+  'balcao.registrar': {
+    roles: ['admin', 'gestor'],
+    run: async (payload, user) => registrarVendaBalcao(vendaBalcaoSchema.parse(payload), user.id),
+  },
+  'balcao.list': {
+    roles: ['admin', 'gestor'],
+    run: async () => listarVendasBalcao(),
+  },
+  'balcao.cancelar': {
+    roles: ['admin'],
+    run: async (payload) => cancelarVendaBalcao(cancelarVendaBalcaoSchema.parse(payload).id),
+  },
   // --- Notificações push (PWA do painel): cada pessoa ativa no próprio aparelho ---
   'push.config': {
     roles: ['admin', 'gestor'],

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ProdutoTamanho } from '../src/types/product.js';
 import { query } from './db.js';
 import { ApiError } from './http.js';
-import { erroFechamento, fromCents, pagamentoSchema, toCents } from './pagamentos.js';
+import { erroFechamento, fromCents, pagamentoSchema, toCents, trocoTotal } from './pagamentos.js';
 import { avisarPedidoNovo } from './push.js';
 
 // Pedidos pela mesa (QR code). O cliente só manda produto, opção e quantidade;
@@ -48,7 +48,7 @@ interface MesaRow {
 
 // --- Validação ---
 
-const itensPedidoSchema = z
+export const itensPedidoSchema = z
   .array(
     z.object({
       produto_id: z.string().trim().min(1).max(120),
@@ -93,7 +93,8 @@ export const statusPedidoSchema = z.object({
   status: z.enum(STATUS_ATUALIZAVEIS),
 });
 
-// Um ou mais pagamentos (Pix/Débito/Crédito) que somam exatamente o total da conta.
+// Um ou mais pagamentos (Pix/Débito/Crédito/Dinheiro) que somam exatamente o total da conta.
+// Em dinheiro, o valor recebido pode passar do valor da linha: a diferença é o troco.
 export const fecharContaSchema = z.object({
   id: z.string().uuid(),
   pagamentos: z.array(pagamentoSchema).min(1, 'Informe a forma de pagamento.').max(5, 'No máximo 5 pagamentos por conta.'),
@@ -358,10 +359,10 @@ export async function getDetalheMesa(id: number) {
       aberta_em: string | Date;
       fechada_em: string | Date;
       valor_total: string;
-      pagamentos: Array<{ metodo: string; valor: number }>;
+      pagamentos: Array<{ metodo: string; valor: number; valor_recebido: number | null; troco: number | null }>;
     }>(
       `select c.id, c.aberta_em, c.fechada_em, c.valor_total,
-              coalesce(json_agg(json_build_object('metodo', p.metodo, 'valor', p.valor) order by p.created_at)
+              coalesce(json_agg(json_build_object('metodo', p.metodo, 'valor', p.valor, 'valor_recebido', p.valor_recebido, 'troco', p.troco) order by p.created_at)
                        filter (where p.id is not null), '[]') as pagamentos
          from contas_mesa c
          left join pagamentos p on p.conta_id = c.id
@@ -399,7 +400,12 @@ export async function getDetalheMesa(id: number) {
       aberta_em: new Date(c.aberta_em).toISOString(),
       fechada_em: new Date(c.fechada_em).toISOString(),
       valor_total: money(c.valor_total),
-      pagamentos: c.pagamentos.map((p) => ({ metodo: p.metodo, valor: money(p.valor) })),
+      pagamentos: c.pagamentos.map((p) => ({
+        metodo: p.metodo,
+        valor: money(p.valor),
+        valor_recebido: p.valor_recebido == null ? null : money(p.valor_recebido),
+        troco: p.troco == null ? null : money(p.troco),
+      })),
     })),
   };
 }
@@ -579,9 +585,9 @@ export async function fecharConta(input: z.infer<typeof fecharContaSchema>, usua
           and not exists (select 1 from pedidos_mesa p where p.conta_id = $1 and p.status in ('pendente', 'novo', 'em_preparo'))
         returning c.id, c.valor_total
      ), pagos as (
-       insert into pagamentos (canal, conta_id, metodo, valor, registrado_por)
-       select 'mesa', fechada.id, pg.metodo, pg.valor, $2
-         from fechada, jsonb_to_recordset($5::jsonb) as pg(metodo text, valor numeric)
+       insert into pagamentos (canal, conta_id, metodo, valor, valor_recebido, troco, registrado_por)
+       select 'mesa', fechada.id, pg.metodo, pg.valor, pg.valor_recebido, pg.troco, $2
+         from fechada, jsonb_to_recordset($5::jsonb) as pg(metodo text, valor numeric, valor_recebido numeric, troco numeric)
        returning id
      )
      select fechada.id, fechada.valor_total, (select count(*) from pagos) as pagamentos from fechada`,
@@ -590,7 +596,7 @@ export async function fecharConta(input: z.infer<typeof fecharContaSchema>, usua
       usuarioId,
       total,
       input.pagamentos.length === 1 ? input.pagamentos[0].metodo : 'dividido',
-      JSON.stringify(input.pagamentos.map((p) => ({ metodo: p.metodo, valor: fromCents(toCents(p.valor)) }))),
+      JSON.stringify(input.pagamentos.map((p) => ({ metodo: p.metodo, valor: fromCents(toCents(p.valor)), valor_recebido: p.valor_recebido, troco: p.troco }))),
     ]
   );
 
@@ -598,7 +604,7 @@ export async function fecharConta(input: z.infer<typeof fecharContaSchema>, usua
     throw new ApiError(409, 'A conta mudou enquanto você fechava (entrou ou mudou um pedido). Confira de novo.');
   }
 
-  return { id: fechada.id, valor_total: money(fechada.valor_total) };
+  return { id: fechada.id, valor_total: money(fechada.valor_total), troco: trocoTotal(input.pagamentos) };
 }
 
 export async function cancelarConta(id: string) {

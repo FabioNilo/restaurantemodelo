@@ -43,8 +43,9 @@ import type {
   PedidoMesaResponse,
   StatusPedidoMesa,
 } from './mesas-contracts';
-import type { BairroEntrega, Desempenho, MesaDetalhe, Metricas, MovimentoCaixa, PedidoDelivery, StatusDelivery } from './painel-contracts';
-import type { FormaPagamento } from '@/lib/pagamentos';
+import type { ItemPedidoMesa } from './mesas-contracts';
+import type { BairroEntrega, Desempenho, MesaDetalhe, Metricas, MovimentoCaixa, PedidoDelivery, StatusDelivery, VendaBalcao } from './painel-contracts';
+import type { FormaPagamento, FormaPagamentoCaixa } from '@/lib/pagamentos';
 import type { CaixaMovimentacao, CaixaResumo, CaixaSerieDiaria } from '@/hooks/useCaixaMovimentacoes';
 import type { Pedido, PedidoListItem, PedidosResumo } from '@/hooks/usePedidos';
 import type { ConfiguracoesSite, ConfiguracoesSiteUpdate } from '@/lib/site-settings';
@@ -610,8 +611,42 @@ export function fetchMesaDetalhe(id: number) {
   return requestMarmitasAdmin<MesaDetalhe>('mesas.detalhe', { id });
 }
 
-export function fecharContaMesaPagamentos(id: string, pagamentos: Array<{ metodo: FormaPagamento; valor: number }>) {
-  return requestMarmitasAdmin<{ id: string; valor_total: number }>('contas.fechar', { id, pagamentos });
+export interface PagamentoCaixaEnvio {
+  metodo: FormaPagamentoCaixa;
+  valor: number;
+  /** só em dinheiro: o que o cliente entregou (vazio = valor exato) */
+  valor_recebido?: number | null;
+}
+
+export function fecharContaMesaPagamentos(id: string, pagamentos: PagamentoCaixaEnvio[]) {
+  return requestMarmitasAdmin<{ id: string; valor_total: number; troco: number }>('contas.fechar', { id, pagamentos });
+}
+
+// --- Venda no balcão ---
+
+export function registrarVendaBalcao(data: {
+  itens: Array<{ produto_id: string; tamanho_codigo?: string | null; quantidade: number }>;
+  nome?: string | null;
+  observacoes?: string | null;
+  pagamentos: PagamentoCaixaEnvio[];
+}) {
+  return requestMarmitasAdmin<{
+    id: string;
+    numero: number;
+    valor_total: number;
+    troco: number;
+    created_at: string;
+    itens: ItemPedidoMesa[];
+    pagamentos: VendaBalcao['pagamentos'];
+  }>('balcao.registrar', data);
+}
+
+export function fetchVendasBalcao() {
+  return requestMarmitasAdmin<VendaBalcao[]>('balcao.list');
+}
+
+export function cancelarVendaBalcao(id: string) {
+  return requestMarmitasAdmin<{ id: string }>('balcao.cancelar', { id });
 }
 
 export function fetchDeliveryAdmin() {

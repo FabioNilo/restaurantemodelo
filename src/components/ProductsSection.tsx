@@ -17,9 +17,12 @@ interface ProductsSectionProps {
   // Página da mesa (QR code): sem a introdução (o banner da mesa já explica) e
   // com a barra fixa grudando mais acima, já que o cabeçalho tem uma linha só.
   modoMesa?: boolean;
+  // Venda no balcão (painel admin): como a mesa, mas sem o cabeçalho do site (a barra gruda no topo da área do painel).
+  modoBalcao?: boolean;
 }
 
-export function ProductsSection({ modoMesa = false }: ProductsSectionProps = {}) {
+export function ProductsSection({ modoMesa: modoMesaProp = false, modoBalcao = false }: ProductsSectionProps = {}) {
+  const modoMesa = modoMesaProp || modoBalcao;
   const { marmitas, categorias, loading, error } = useMarmitas();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,7 +100,8 @@ export function ProductsSection({ modoMesa = false }: ProductsSectionProps = {})
         <div
           className={cn(
             'sticky z-30 -mx-4 mb-8 border-y border-primary/20 bg-background/95 px-4 py-3 shadow-soft backdrop-blur md:top-16 md:mx-0 md:rounded-2xl md:border',
-            modoMesa ? 'top-[4.25rem]' : 'top-[6.4rem]'
+            modoMesa ? 'top-[4.25rem]' : 'top-[6.4rem]',
+            modoBalcao && 'top-14 md:top-14 lg:top-2'
           )}
         >
           <div className="relative mb-3">
@@ -189,7 +193,7 @@ export function ProductsSection({ modoMesa = false }: ProductsSectionProps = {})
                         </span>
                       </div>
                     )}
-                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className={cn('grid gap-6 sm:grid-cols-2', modoBalcao ? 'xl:grid-cols-2 2xl:grid-cols-3' : 'lg:grid-cols-3')}>
                       {group.items.map((marmita) => (
                         <ProductCard
                           key={marmita.id}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, Landmark, Loader2, MapPin, MessageCircle, QrCode, Store, Truck, X } from 'lucide-react';
+import { Check, CheckCircle2, CreditCard, Landmark, Loader2, MapPin, MessageCircle, QrCode, Store, Truck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -439,9 +439,22 @@ export function CartModal({
                     >
                       <Icon className="h-5 w-5 text-gold-ink" />
                       <span className="font-bold">{label}</span>
+                      {customerData.paymentMethod === value && <Check className="h-4 w-4 text-secondary" aria-hidden="true" />}
                     </button>
                   ))}
                 </div>
+                <p
+                  className="flex items-start gap-2 rounded-xl border border-secondary/25 bg-secondary/10 px-3 py-2 text-sm"
+                  role="status"
+                  aria-live="polite"
+                  data-testid="pagamento-escolhido"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-secondary" aria-hidden="true" />
+                  <span>
+                    Pagamento escolhido: <strong>{PAYMENT_LABELS[customerData.paymentMethod ?? 'pix']}</strong>.{' '}
+                    {retirada ? 'Você paga no balcão, na retirada.' : 'Você paga ao receber o pedido.'}
+                  </span>
+                </p>
               </div>
 
               <div className="space-y-2">

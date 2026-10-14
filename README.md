@@ -61,7 +61,7 @@ navegador ──► fotos direto do bucket (leitura pública, sem passar pela Ve
   - O Object Storage do Neon não existe em São Paulo, por isso o projeto fica em us-east-1.
 - **Login**: senha com bcrypt na tabela `usuarios_admin` e token JWT (12 h) assinado com `SESSION_SECRET`. Trocar a senha encerra as sessões abertas em outros aparelhos.
 - **Cache**: o catálogo e o status do site ficam 30 s no cache da CDN da Vercel. Uma edição no admin leva **até ~1 min** para aparecer para todos os visitantes.
-- **Formas de pagamento em todo o site**: só **Pix, Débito e Crédito**, sem dinheiro e sem troco (`server/pagamentos.ts` e `src/lib/pagamentos.ts`).
+- **Formas de pagamento**: o **site** (carrinho de delivery/retirada e a baixa desses pedidos) aceita só **Pix, Débito e Crédito**. O **caixa** (fechar conta da mesa e venda no balcão) aceita também **Dinheiro**, com valor recebido e troco (`server/pagamentos.ts` e `src/lib/pagamentos.ts`: `FORMAS_PAGAMENTO` x `FORMAS_PAGAMENTO_CAIXA`).
 - **Ainda não existe**: cadastro de gestores pela tela (use `npm run admin:password`).
 - **Acesso ao painel**: não há mais botão "Admin" no site. O painel fica em `/auth` (salve nos favoritos), e o `robots.txt` pede aos buscadores para não indexar `/auth`, `/admin` e `/api/`.
 
@@ -71,6 +71,7 @@ Mesma estrutura do painel do `plataforma-restaurantes`: **menu lateral** (no cel
 
 | Seção | O que faz | Admin | Gestor (caixa) |
 |---|---|---|---|
+| **Balcão** | **venda direta** sem mesa e sem cadastro: escolhe os itens, recebe (Pix, Débito, Crédito ou Dinheiro) e a venda entra no Caixa | ✔ | ✔ (cancelar só o admin) |
 | **Mesas** | mapa das mesas (livre ou ocupada, há quanto tempo, total e pedidos novos), QR e cadastro | ✔ | ✔ (sem cadastro e sem QR) |
 | **Mesas → comanda** | pedidos da mesa, Preparar → Entregue, Imprimir, Cancelar, **Lançar pedido** e **Fechar conta** | ✔ | ✔ |
 | **Delivery** | pedidos do site em andamento, avanço de status e **Marcar entregue** (forma de pagamento e taxa) | ✔ | ✔ |
@@ -105,9 +106,11 @@ painel (/admin/mesas e /admin/mesas/:id) ── consulta a cada 10 s ───�
   - A mesa ignora o horário do delivery e só aceita pedido se estiver **ativa**.
 - **Lançar pedido**: na comanda, abre o cardápio da mesa numa aba nova, para o garçom pedir por um cliente sem celular.
 - **Fechar conta**:
-  - escolhe Pix, Débito ou Crédito, e o valor já vem preenchido com o total;
-  - **"Dividir pagamento"** reparte o total em até 3 formas, e "Completar R$ X" preenche o que falta;
-  - a soma tem de bater exatamente com o total, porque não há troco;
+  - escolhe Pix, Débito, Crédito ou **Dinheiro**, e o valor já vem preenchido com o total;
+  - **"Dividir pagamento"** reparte o total em até 4 formas, e "Completar R$ X" preenche o que falta;
+  - **Dinheiro**: aparece o campo **"Cliente entregou"** (com atalhos de cédulas e "Valor exato") e o **troco** é calculado na hora ("Troco a devolver"); se o cliente entregou menos que o valor em dinheiro, o botão fica bloqueado;
+  - um quadro "Forma de pagamento escolhida" confirma em texto o que será gravado (ex.: "Dinheiro: R$ 27,80 · recebido R$ 50,00 · troco R$ 22,20"), e o aviso depois de fechar lembra o troco a devolver;
+  - a soma dos **valores** (a parte da conta paga em cada forma) tem de bater exatamente com o total; o troco não conta como pagamento;
   - não fecha com pedido em andamento;
   - se entrar um pedido durante o fechamento, a API recusa e pede para conferir de novo.
 - **QR**: "Imprimir QR" gera uma folha A4 com 6 cartões; o botão QR do cartão imprime o de uma mesa só (`/admin/mesas/qr?id=`). "Gerar novo QR" invalida o cartão impresso.
@@ -151,6 +154,15 @@ O painel pode ser **instalado como app** (celular, tablet ou computador) e **avi
 - **Como funciona**: ao criar o pedido, a API (`server/push.ts`, biblioteca `web-push`) envia o aviso a todos os aparelhos inscritos. O envio espera no máximo 2,5 s e **nunca derruba o pedido**: se o push falhar, o pedido é registrado do mesmo jeito. Inscrições de aparelhos que cancelaram (404/410) são apagadas sozinhas.
 - **Sem chaves não quebra nada**: sem as variáveis `VAPID_*` o recurso fica desligado e o painel avisa "notificações ainda não configuradas no servidor".
 - Tocar na notificação abre (ou traz para a frente) o painel na tela do pedido.
+
+### Balcão (venda no balcão) e dinheiro
+
+- **Tela Balcão** (`/admin/balcao`, tabela `vendas_balcao`, migração `009`): cardápio completo à esquerda e, à direita, os itens da venda, nome e observação (opcionais) e o quadro de pagamento. No celular a venda atual abre numa folha, acima da barra de navegação.
+- Os **preços são recalculados no servidor** a partir do cardápio, como nos pedidos de mesa e delivery. A venda e os pagamentos são gravados **juntos num comando só**. A venda no balcão **não baixa estoque** (como a mesa).
+- Aviso "Venda nº N registrada · devolva R$ X de troco" e botão **Imprimir cupom** (itens, forma(s) de pagamento, recebido e troco). Em "Vendas de hoje" dá para reimprimir; só o **admin** cancela. Cancelar **não apaga nada**: a venda fica no histórico como cancelada e sai do Caixa e das Métricas.
+- **Dinheiro no banco** (`pagamentos`): `valor` é a parte da conta quitada nessa forma (é a **receita**); `valor_recebido` é o que o cliente entregou e `troco = valor_recebido - valor`. O **troco devolvido nunca entra no Caixa**: o card "Dinheiro" soma só `valor`, que é o que deve estar na gaveta. Pix, Débito e Crédito nunca têm recebido nem troco.
+- Caixa, Excel e Métricas ganham o canal **Balcão** e a forma **Dinheiro**; as Movimentações do Excel têm as colunas "Valor recebido (dinheiro)" e "Troco (dinheiro)".
+- No **carrinho do site**, a forma escolhida fica marcada (✓) e uma frase confirma: "Pagamento escolhido: Pix. Você paga ao receber o pedido." (na retirada: "no balcão, na retirada"). O site continua **sem Dinheiro**.
 
 ### Caixa e Excel
 

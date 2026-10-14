@@ -12,6 +12,7 @@ import {
   Menu,
   Settings,
   ShieldAlert,
+  ShoppingBag,
   Trophy,
   UtensilsCrossed,
   Wallet,
@@ -93,6 +94,7 @@ export default function AdminLayout() {
 
   const items: NavItem[] = [
     { to: '/admin/mesas', label: 'Mesas', icon: Armchair },
+    { to: '/admin/balcao', label: 'Balcão', icon: ShoppingBag },
     { to: '/admin/delivery', label: 'Delivery', icon: Bike },
     { to: '/admin/caixa', label: 'Caixa', icon: Wallet },
     { to: '/admin/cardapio', label: 'Cardápio', icon: UtensilsCrossed },
