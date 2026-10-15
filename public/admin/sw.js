@@ -33,14 +33,14 @@ self.addEventListener('push', (event) => {
       // Pedido novo fica na tela até alguém tocar, para não passar batido no balcão.
       requireInteraction: true,
       vibrate: [200, 100, 200],
-      data: { url: typeof dados.url === 'string' && dados.url.startsWith('/admin') ? dados.url : '/admin/mesas' },
+      data: { url: typeof dados.url === 'string' && dados.url.startsWith('/admin') ? dados.url : '/admin/balcao' },
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/admin/mesas';
+  const url = (event.notification.data && event.notification.data.url) || '/admin/balcao';
 
   event.waitUntil(
     (async () => {

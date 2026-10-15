@@ -37,7 +37,7 @@ interface NavItem {
 // Painel com menu lateral (estrutura do plataforma-restaurantes/app/painel),
 // nas cores da marca. Cada seção é uma rota filha renderizada no <Outlet/>.
 // No celular, as seções do dia a dia ficam na barra inferior; o resto vai em "Mais".
-const PRINCIPAIS_MOBILE = ['/admin/mesas', '/admin/caixa', '/admin/cardapio'];
+const PRINCIPAIS_MOBILE = ['/admin/balcao', '/admin/mesas', '/admin/caixa', '/admin/cardapio'];
 
 export default function AdminLayout() {
   const { user, loading, permissions, signOut } = useAuth();
@@ -93,8 +93,8 @@ export default function AdminLayout() {
   }
 
   const items: NavItem[] = [
-    { to: '/admin/mesas', label: 'Mesas', icon: Armchair },
     { to: '/admin/balcao', label: 'Balcão', icon: ShoppingBag },
+    { to: '/admin/mesas', label: 'Mesas', icon: Armchair },
     { to: '/admin/delivery', label: 'Delivery', icon: Bike },
     { to: '/admin/caixa', label: 'Caixa', icon: Wallet },
     { to: '/admin/cardapio', label: 'Cardápio', icon: UtensilsCrossed },
@@ -192,7 +192,7 @@ export default function AdminLayout() {
       {/* Celular: barra inferior ao alcance do polegar. */}
       <nav
         aria-label="Seções do painel (celular)"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-brand-deep pb-[env(safe-area-inset-bottom)] text-secondary-foreground print:hidden lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-white/10 bg-brand-deep pb-[env(safe-area-inset-bottom)] text-secondary-foreground print:hidden lg:hidden"
       >
         {principais.map(({ to, label, icon: Icon }) => (
           <NavLink

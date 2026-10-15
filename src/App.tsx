@@ -9,6 +9,7 @@ import { CartProvider } from "@/context/CartContext";
 import { Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/query-client";
 
+import { ROTA_INICIAL_ADMIN } from "./lib/admin-home";
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -44,7 +45,7 @@ const App = () => (
                 {/* Página de impressão dos QR: fora do layout do painel. */}
                 <Route path="/admin/mesas/qr" element={<MesasQrPrint />} />
                 <Route path="/admin" element={<AdminLayout />}>
-                  <Route index element={<Navigate to="mesas" replace />} />
+                  <Route index element={<Navigate to={ROTA_INICIAL_ADMIN} replace />} />
                   <Route path="mesas" element={<MesasPage />} />
                   <Route path="mesas/:id" element={<MesaComandaPage />} />
                   <Route path="balcao" element={<BalcaoPage />} />
